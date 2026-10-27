@@ -1,0 +1,17 @@
+{
+  "name": "walkerville-roster",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "Sunday ministry roster for Walkerville Church Plant, published as a claude.ai artifact.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

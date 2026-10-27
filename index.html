@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Walkerville Sunday Roster</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{--bg:#fafaf7;--fg:#1d1d1b;--mut:#6b6b66;--card:#fff;--bd:#dcdcd4;--ac:#2f5d50;--bad:#b3261e;--warn:#9a6200;--chip:#e3ede6;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light dark}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161716;--fg:#ecece6;--mut:#9a9a92;--card:#1f201f;--bd:#383a37;--ac:#7fc4ad;--bad:#ff8a80;--warn:#f0b955;--chip:#2a3a33}}
+:root[data-theme="dark"]{--bg:#161716;--fg:#ecece6;--mut:#9a9a92;--card:#1f201f;--bd:#383a37;--ac:#7fc4ad;--bad:#ff8a80;--warn:#f0b955;--chip:#2a3a33}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:980px;margin:0 auto;padding:14px}
+h1{font-size:20px;margin:0 0 2px}h3{margin:0 0 8px;font-size:16px}.mut{color:var(--mut);font-size:13px}
+nav{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+button,select,input{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:6px 10px}
+button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color:var(--ac)}button.on{border-color:var(--ac);font-weight:600}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin:0 0 12px}
+.row{display:grid;grid-template-columns:150px 1fr;gap:8px;padding:6px 0;border-top:1px solid var(--bd);align-items:start}
+.drop{min-height:34px;display:flex;gap:6px;flex-wrap:wrap;padding:4px;border:1px dashed var(--bd);border-radius:8px}
+.chip{background:var(--chip);border:1px solid transparent;border-radius:14px;padding:3px 10px;cursor:pointer;user-select:none}
+.chip.bad{border-color:var(--bad);color:var(--bad)}.chip.on{outline:2px solid var(--ac)}.chip.aw{opacity:.55;text-decoration:line-through}
+.warn{color:var(--warn);font-size:13px}.bench .chip{background:transparent;border-color:var(--bd)}
+.l{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
+.sv{font-size:17px}.sv .row{grid-template-columns:minmax(110px,200px) 1fr}.x{margin-left:5px;cursor:pointer;color:var(--bad)}
+.rec{border-collapse:collapse;font-size:13px}.rec th,.rec td{border:1px solid var(--bd);padding:3px 7px;text-align:center;white-space:nowrap}.rec th:first-child,.rec td:first-child{position:sticky;left:0;background:var(--card);text-align:left}.rec .aw{background:repeating-linear-gradient(45deg,transparent 0 4px,var(--bd) 4px 5px)}.rec .fu{opacity:.55}.rec .hit{background:var(--chip);font-weight:600}.fl{color:var(--bad);font-weight:600}
+@media(max-width:560px){.row{grid-template-columns:1fr}}
+@media print{nav,.noprint,button{display:none}}
+</style></head><body><main>
+<h1>Walkerville Sunday Roster</h1>
+<div class="mut">Tap a name, then tap the ministry box to move them (dragging works too). Drop on “Not serving” to remove. Red = conflict.</div>
+<nav><button data-t="s" class="on">Serving</button><button data-t="r">Roster</button><button data-t="a">Away</button><button data-t="v">Service record</button><button data-t="h">Admin</button></nav>
+<div id="fl" class="warn noprint"></div><div id="v"></div></main>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let db,user,dl,me='',cfg=null,people={},ros={},away={},log=[],tab='s',sel=null,names={},past=false,cf=null,sedit=false,thr=0,pick='',nd='',drafts={},fd='',ready=false;
+const Mall=()=>cfg?.ministries||[],M=()=>Mall().filter(m=>!m.gone),byD=(a,b)=>a.date<b.date?-1:1,tabId='t'+Math.random().toString(36).slice(2);
+function Ms(d,r){r=r||ros[d];if(!r)return M();const asg=k=>(r.s?.[k]||[]).length;const b=r.meta?.m?r.meta.m.map(m=>({...m})):Mall().filter(m=>!m.gone||asg(m.k)).map(m=>({...m}));Object.keys(r.s||{}).forEach(k=>{if(!b.some(m=>m.k==k)&&asg(k))b.push({k,l:Mall().find(m=>m.k==k)?.l||k,n:0,x:0})});return b}
+function snap(d,r){const base=r?Ms(d,r):M();return{m:base.map(m=>({k:m.k,l:m.l,n:m.n,x:m.x?1:0})),p:Object.fromEntries(Object.values(people).map(p=>[p.id,{n:p.name,e:[...(p.elig||[])]}]))}}
+const Pn=(d,id)=>ros[d]?.meta?.p?.[id]?.n??people[id]?.name??id,Pe=(d,id)=>ros[d]?.meta?.p?.[id]?.e??people[id]?.elig,sdt=d=>new Date(d+'T00:00:00Z').toLocaleDateString('en-ZA',{day:'numeric',month:'short',timeZone:'UTC'});
+const L={c:0,p:0,r:0};let locking=false,lockStop=false;
+async function autoLock(){if(locking||lockStop||!(L.c&&L.p&&L.r)||!cfg||!db)return;const todo=Object.entries(ros).filter(([d,r])=>!r.meta);if(!todo.length)return;locking=true;try{if(user&&user.can&&(await user.can('data.write'))===false){lockStop=true;return}for(const[d,r]of todo)await withLock(db.doc('rosters/'+d),async ref=>{const c=await ref.get();if(c.exists&&c.data().s&&!c.data().meta)await ref.update({meta:snap(d,c.data())})});logit('Locked '+todo.length+' existing Sunday(s) to their current ministry and people settings')}catch(e){lockStop=true;console.error(e)}finally{locking=false}}
+function flg(d){const x=issues(d);return{n:x.sum.length+Object.keys(x.out).length,out:x.out,sum:x.sum}}
+function flagged(ds){return ds.filter(d=>d>=today()&&flg(d).n)}
+function flSum(ds){const f=flagged(ds);return f.length?`<div class="warn" style="margin-top:6px">⚑ ${f.length} upcoming Sunday${f.length==1?'':'s'} need${f.length==1?'s':''} attention: ${f.map(d=>`<button data-fl="${d}">${sdt(d)}</button>`).join(' ')}</div>`:'<div class="mut" style="margin-top:6px">No upcoming Sundays have problems.</div>'}
+function flagRow(ds){return`<tr><td>⚑ Needs attention</td><td colspan="4" class="mut" style="text-align:left">click a flag to fix it</td>`+ds.map(d=>{const f=d>=today()?flg(d):{n:0};if(!f.n)return'<td></td>';const tip=[...f.sum,...Object.entries(f.out).map(([id,l])=>Pn(d,id)+': '+l.join('; '))].join(' | ');return`<td data-fl="${d}" class="fl" style="cursor:pointer" title="${esc(tip)}">⚑ ${f.n}</td>`}).join('')+'</tr>'}
+function fdet(){const d=fd;if(!d||!ros[d])return'';const{out,sum}=issues(d),r=ros[d],on={};Ms(d).forEach(m=>(r.s[m.k]||[]).forEach(i=>on[i]=m.l));
+ const lines=[...sum.map(s=>`<li>${esc(s)}</li>`),...Object.entries(out).map(([id,l])=>`<li><b>${esc(Pn(d,id))}</b>: ${esc(l.join('; '))}</li>`)];
+ return`<div class="card"><h3>${fmt(d)} <button data-fl="${d}">Close</button></h3>`+(lines.length?`<ul class="warn" style="margin:0 0 8px;padding-left:20px">${lines.join('')}</ul>`:'<div class="mut">No issues on this Sunday.</div>')+Ms(d).map(m=>{const ids=r.s[m.k]||[],opts=Object.values(people).filter(p=>!p.gone&&p.elig.includes(m.k)&&!ids.includes(p.id)).sort((a,b)=>a.name.localeCompare(b.name));
+  return`<div class="row"><b>${esc(m.l)}<div class="mut">${m.n} needed</div></b><div>${ids.map(i=>`<span${out[i]?' class="warn"':''}>${esc(Pn(d,i))}<span class="x" data-srm="${m.k}|${esc(i)}" data-d="${d}" title="Remove">✕</span></span>`).join(', ')||'<span class="mut">Unfilled</span>'}<div class="l"><select id="sa-${m.k}"><option value="">Add…</option>${opts.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}${isAway(p.id,d)?' (away)':on[p.id]?' (also: '+esc(on[p.id])+')':''}</option>`).join('')}</select><button data-sadd="${m.k}" data-d="${d}">Add</button></div></div></div>`}).join('')+`<div class="l"><button data-regen="${d}">${cf==d?'Confirm: replace this Sunday':'Regenerate this Sunday'}</button></div></div>`}
+async function createIfAbsent(d,doc){const ref=db.doc('rosters/'+d);let l;try{l=await ref.acquire({holder:tabId,ttlMs:15000})}catch(e){return false}
+ if(!l||!l.acquired)return false;const cur=await ref.get();if(cur.exists&&cur.data()?.s)return false;await ref.set(doc);return true}
+const fmt=d=>new Date(d+'T00:00:00Z').toLocaleDateString('en-ZA',{weekday:'short',day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
+const addD=(d,n)=>new Date(Date.parse(d+'T00:00:00Z')+n*864e5).toISOString().slice(0,10);
+const today=()=>new Date().toISOString().slice(0,10);
+function sundays(){if(!cfg)return[];const b=today()>cfg.start?today():cfg.start,e=new Date(b+'T00:00:00Z');e.setUTCMonth(e.getUTCMonth()+3);const end=e.toISOString().slice(0,10),o=[];for(let d=cfg.start;d<=end;d=addD(d,7))o.push(d);return o}
+const isAway=(id,d)=>Object.values(away).some(a=>a.person==id&&a.from<=d&&d<=a.to);
+const logit=msg=>db.collection('history').add({ts:new Date().toISOString(),by:me,msg}).catch(()=>{});
+function issues(d){const r=ros[d],ms=Ms(d),out={},sum=[],by={},add=(id,t)=>(out[id]=out[id]||[]).push(t);
+ ms.forEach(m=>(r.s[m.k]||[]).forEach(id=>{(by[id]=by[id]||[]).push(m);const p=people[id],e=Pe(d,id);
+  if(!e)add(id,'Unknown person');else if(p?.gone)add(id,'Removed from the people list');else if(!e.includes(m.k))add(id,'Not marked eligible for '+m.l);
+  if(isAway(id,d))add(id,'Marked away')}));
+ Object.entries(by).forEach(([id,ms])=>{if(ms.length>1){add(id,'Double-booked: '+ms.map(m=>m.l).join(' + '));if(ms.some(m=>m.x))add(id,'Exclusive ministry clash')}});
+ ms.forEach(m=>{const n=(r.s[m.k]||[]).length;if(n<m.n)sum.push(m.l+' needs '+(m.n-n)+' more')});
+ return{out,sum}}
+function gen(d,prior){const last={},cnt={},s={},used={},excl={},P=Object.values(people).filter(p=>!p.gone),ms=M();
+ prior.forEach((r,i)=>ms.forEach(m=>(r.s[m.k]||[]).forEach(id=>{last[m.k+id]=i;cnt[id]=(cnt[id]||0)+1})));
+ const pool=m=>P.filter(p=>p.elig.includes(m.k)).length;
+ [...ms].sort((a,b)=>(b.x?1:0)-(a.x?1:0)||pool(a)-pool(b)).forEach(m=>{s[m.k]=[];
+  for(let n=0;n<m.n;n++){let c=P.filter(p=>p.elig.includes(m.k)&&!isAway(p.id,d)&&!s[m.k].includes(p.id)&&!excl[p.id]),f=c.filter(p=>!used[p.id]);
+   c=m.x?f:(f.length?f:c);if(!c.length)break;
+   const sc=p=>(last[m.k+p.id]??-99)-(P.some(q=>q.family==p.family&&used[q.id])?1.5:0)+(cnt[p.id]||0)*.01;
+   c.sort((a,b)=>sc(a)-sc(b)||a.name.localeCompare(b.name));const p=c[0];
+   s[m.k].push(p.id);used[p.id]=1;if(m.x)excl[p.id]=1}});
+ return s}
+async function genMissing(){const ds=sundays().filter(d=>!ros[d]),prior=Object.values(ros),made=[];
+ for(const d of ds){const doc={date:d,s:gen(d,prior.filter(x=>x.date<d).sort(byD)),gen:true,manual:false,meta:snap()};if(await createIfAbsent(d,doc)){prior.push(doc);made.push(d)}}
+ if(made.length)logit('Generated '+made.length+' Sunday(s): '+fmt(made[0])+' to '+fmt(made[made.length-1]))}
+async function regen(d){const s=gen(d,Object.values(ros).filter(x=>x.date<d).sort(byD));await withLock(db.doc('rosters/'+d),async ref=>{const cur=await ref.get(),c=cur.exists?cur.data():{};await ref.set({date:d,s,gen:true,manual:false,note:c.note||'',verse:c.verse||'',meta:snap()});logit('Regenerated '+fmt(d))})}
+async function move(d,id,from,to){if(from==to)return;sel=null;
+ await withLock(db.doc('rosters/'+d),async ref=>{const cur=await ref.get();if(!cur.exists||!cur.data().s)return;const r0=cur.data(),ms=Ms(d,r0),s=r0.s,a=s[from]||[],b=s[to]||[],patch={};
+  if(from&&!a.includes(id)){flash('Someone else already changed this. The latest version is shown.');return}
+  if(from)patch[from]=a.filter(x=>x!=id);if(to&&!b.includes(id))patch[to]=[...b,id];
+  if(!Object.keys(patch).length)return;
+  const L=k=>ms.find(m=>m.k==k)?.l||'Not serving';
+  await ref.update({s:patch,manual:true});logit(`${fmt(d)}: moved ${Pn(d,id)} from ${L(from)} to ${L(to)}`)})}
+function card(d){const r=ros[d];if(!r)return`<section class="card"><h3>${fmt(d)}</h3><p class="mut">Not generated yet.</p></section>`;
+ const{out,sum}=issues(d),placed=new Set(Object.values(r.s).flat());
+ const chip=(id,k)=>{const bad=out[id],on=sel&&sel.id==id&&sel.d==d&&sel.k==k;return`<span class="chip${bad?' bad':''}${on?' on':''}" draggable="true" data-id="${esc(id)}" data-d="${d}" data-k="${k}" title="${esc((bad||[]).join('; '))}">${esc(Pn(d,id))}</span>`};
+ const bench=Object.values(people).filter(p=>!p.gone&&!placed.has(p.id)).sort((a,b)=>a.name.localeCompare(b.name));
+ return`<section class="card"><h3>${fmt(d)} ${r.manual?'<span class="mut">· edited</span>':''}</h3>
+ ${sum.length?`<div class="warn">⚠ ${esc(sum.join(' · '))}</div>`:''}
+ ${Ms(d).map(m=>`<div class="row"><b>${esc(m.l)}${m.x?' <span class="mut">(exclusive)</span>':''}<div class="mut">${m.n} needed</div></b><div class="drop" data-drop="${m.k}" data-d="${d}">${(r.s[m.k]||[]).map(id=>chip(id,m.k)).join('')}</div></div>`).join('')}
+ <div class="row bench"><b>Not serving</b><div class="drop" data-drop="" data-d="${d}">${bench.map(p=>`<span class="chip${isAway(p.id,d)?' aw':''}${sel&&sel.id==p.id&&sel.d==d&&!sel.k?' on':''}" draggable="true" data-id="${esc(p.id)}" data-d="${d}" data-k="" title="${isAway(p.id,d)?'Away':''}">${esc(p.name)}</span>`).join('')}</div></div>
+ <div class="l noprint"><button data-regen="${d}">${cf==d?'Confirm: replace this Sunday':'Regenerate this Sunday'}</button></div></section>`}
+function render(){const v=$('#v');if(!ready)return;
+ if(!cfg){v.innerHTML='<p class="mut">No configuration found yet.</p>';return}
+ if(tab=='r'){const miss=sundays().filter(d=>!ros[d]).length,cut=addD(today(),-7);
+  const ds=[...new Set([...sundays(),...Object.keys(ros)])].sort().filter(d=>past||d>=cut);
+  v.innerHTML=`<div class="l noprint"><button class="p" id="gen">Generate ${miss} missing Sunday${miss==1?'':'s'}</button><button id="past">${past?'Hide':'Show'} past</button><button id="csv">Export CSV</button><span class="mut">Window: 3 rolling months. Existing Sundays are never overwritten.</span></div>`+ds.map(card).join('')}
+ else if(tab=='s')v.innerHTML=serving();
+ else if(tab=='v')v.innerHTML=record();
+ else if(tab=='a'){const P=Object.values(people).filter(p=>p.elig.length&&!p.gone).sort((a,b)=>a.name.localeCompare(b.name));
+  v.innerHTML=`<div class="card"><h3>Flag unavailability</h3><div class="l"><select id="ap">${P.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select>
+  <input type="date" id="af"><span>to</span><input type="date" id="at"><input id="an" placeholder="Note (optional)"><button class="p" id="aadd">Add</button></div>
+  <div class="mut">Leave “to” blank for a single date. Rosters already generated are flagged in red; use “Regenerate this Sunday” to refill.</div></div>
+  <div class="card"><h3>Away</h3>${Object.entries(away).sort((a,b)=>a[1].from<b[1].from?-1:1).map(([k,a])=>`<div class="l">${esc(people[a.person]?.name||a.person)} · ${a.from}${a.to!=a.from?' to '+a.to:''} ${a.note?'· '+esc(a.note):''}<button data-del="${esc(k)}">Remove</button></div>`).join('')||'<span class="mut">Nobody flagged.</span>'}</div>`}
+ else v.innerHTML=admin()+`<div class="card"><h3>Change log</h3>${log.map(h=>`<div class="l"><span class="mut">${new Date(h.ts).toLocaleString('en-ZA')}</span> ${esc(names[h.by]||'Someone')}: ${esc(h.msg)}</div>`).join('')||'<span class="mut">No changes yet.</span>'}</div>`;v.innerHTML=helpBox()+v.innerHTML}
+function verseBox(d){const r=ros[d]||{},v=drafts['v'+d]??r.verse??'';return`<div class="noprint"><textarea data-verse="${d}" rows="2" style="width:100%;box-sizing:border-box;font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:6px 10px" placeholder="Verse for this Sunday, e.g. reference and text…">${esc(v)}</textarea><div class="l"><button data-vsave="${d}">Save verse</button></div></div>`}
+function noteBox(d){const r=ros[d]||{},v=drafts[d]??r.note??'';return`<div class="noprint"><textarea data-note="${d}" rows="3" style="width:100%;box-sizing:border-box;font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:6px 10px" placeholder="Notes for this Sunday…">${esc(v)}</textarea><div class="l"><button data-nsave="${d}">Save note</button></div></div>`}
+const HELP={s:['Who is serving this coming Sunday. Use this page to check the list, share it (Export PDF) or make last-minute changes.',['Shows the next Sunday only (a Sunday that is today still counts). It moves on to the following Sunday on the Monday.','Verse: type the verse for the week in the Verse box and press Save verse. It shows at the top of the list and the PDF, and stays with that Sunday permanently.','Export PDF saves a one-page copy of the list, with the verse at the top and that Sunday’s note at the bottom.','To change someone, press Edit. Tap ✕ beside a name to remove them, or choose a name under “Add…” and press Add. Extra people beyond the usual number are fine. To replace someone, remove them and add the new person.','Notes: type in the note box and press Save note. Each Sunday has its own note, so next week starts blank and past notes are kept.','If it says nothing has been generated yet, open the Roster tab and press Generate.']],
+ r:['Plan and adjust the roster for every Sunday. Changes here show up on the Serving tab.',['Generate fills in the next 3 months of Sundays using the rotation. It never changes a Sunday that already exists.','To move someone: tap their name, then tap the ministry box you want (dragging works too). Tap or drop on “Not serving” to take them off. Adding extra people to a ministry is allowed.','Red names are conflicts: away that day, not marked eligible for that ministry, serving twice, or clashing with an exclusive role (Security/Lock Up and Creche can’t be combined with anything else). “Needs N more” means a slot is short.','Regenerate this Sunday rebuilds that one Sunday from scratch (it asks you to confirm). Your manual changes to that Sunday are lost, but its note is kept.','Show past reveals earlier Sundays. Export CSV downloads the whole roster for Excel.']],
+ a:['Tell the roster when someone is not available, so they are skipped when Sundays are generated.',['Pick the person, choose the first date and (for several days) the last date. Leave “to” empty for a single day, add an optional note, then press Add.','Sundays that already exist will show the person in red. Go to the Roster tab and use Regenerate this Sunday to refill it, or move people by hand.','Press Remove next to an entry if plans change.']],
+ v:['A record of who has served, on what and when, so you can see who has been serving many Sundays in a row. It is for insight only; nothing here changes the roster.',['Each row is a person and each column a Sunday. Letters show the ministry served (key above the grid), hatched cells are away, and dimmed columns are planned future Sundays.','Run = consecutive Sundays served up to the upcoming Sunday. Longest = longest run so far. Total = Sundays served. People are sorted by current run.','The optional highlight box marks anyone whose run reaches the number you enter (0 turns it off).','Click a person’s name to open a detailed view below the table. Click the name again to close it.','The “Needs attention” row flags upcoming Sundays with a problem: a ministry short of people, someone away, not eligible, double-booked, or a removed person still assigned. Hover a flag to see the reasons. Click it to open that Sunday below the table, see exactly what is wrong and fix it there by removing or adding people. Past Sundays are not flagged.','The verses and notes section lets you read or edit the verse and note for any Sunday, and lists all of them.']],
+ h:['Manage the people and ministries, and see a log of every change. Use this tab to add, change or remove people and ministries and to set who can serve in what.',['People: change a name or family number by typing and pressing Enter or clicking away. Tick or untick a ministry to say whether that person can serve in it. New people start with nothing ticked.','Add a person with the form under the people table. Remove takes someone off the lists and out of future automatic rosters. Their past service stays in the Service record, and you can bring them back from “Removed people”. If a removed person is still on a future Sunday, that Sunday shows them in red until you move them.','Ministries: rename one, change how many people it needs (used only when generating automatically) or mark it exclusive (anyone serving in it can’t serve in anything else that day). Remove stops a ministry being used for new Sundays. Sundays that already exist keep showing it, with the people assigned, exactly as generated. Restore brings it back.','Each Sunday keeps a locked copy of the ministry names, headcounts, exclusive settings, people names and eligibility from when it was generated, so changes here never alter existing Sundays. A new ministry only appears on an existing Sunday if you press Regenerate on it. Sundays generated before this feature existed are locked automatically the first time the page is opened by someone who can edit.','Change log (at the bottom): every change, newest first, with who made it.']]};
+function helpBox(){const h=HELP[tab];return h?`<div class="card noprint"><b>About this tab</b><div class="mut">${h[0]}</div><ul class="mut" style="margin:6px 0 0;padding-left:20px">${h[1].map(x=>`<li>${x}</li>`).join('')}</ul></div>`:''}
+let ft;const flash=m=>{const e=$('#fl');if(!e)return;e.textContent=m;clearTimeout(ft);ft=setTimeout(()=>{e.textContent=''},6000)};
+const fail=x=>{console.error(x);flash(x&&x.message=='busy'?'Someone else is editing right now. Please try again in a moment.':'That change could not be saved. Please try again.')};
+async function withLock(ref,fn){for(let i=0;i<10;i++){const l=await ref.acquire({holder:tabId,ttlMs:3000});if(l&&l.acquired)return fn(ref);await new Promise(r=>setTimeout(r,250+Math.random()*300))}throw new Error('busy')}
+const saveM=fn=>withLock(db.doc('config/main'),async ref=>{const cur=await ref.get();if(!cur.exists)return;const ms=(cur.data().ministries||[]).map(m=>({...m}));fn(ms);await ref.update({ministries:ms})});
+function admin(){const all=Mall(),act=M(),K=esc,P=Object.values(people).sort((a,b)=>a.name.localeCompare(b.name)),pa=P.filter(p=>!p.gone),pg=P.filter(p=>p.gone);
+ return`<div class="card"><h3>Ministries</h3><div style="overflow-x:auto"><table class="rec"><tr><th>Ministry</th><th>People needed</th><th>Exclusive</th><th></th></tr>`+all.map(m=>`<tr class="${m.gone?'fu':''}"><td><input data-mf="l" data-mk="${K(m.k)}" value="${K(m.l)}"></td><td><input type="number" min="0" style="width:64px" data-mf="n" data-mk="${K(m.k)}" value="${m.n}"></td><td><input type="checkbox" data-mf="x" data-mk="${K(m.k)}"${m.x?' checked':''}></td><td>${m.gone?`<button data-mrs="${K(m.k)}">Restore</button>`:`<button data-mrm="${K(m.k)}">${cf=='m:'+m.k?'Confirm remove':'Remove'}</button>`}</td></tr>`).join('')+`</table></div><div class="l"><input id="mn" placeholder="New ministry name"><input id="mc" type="number" min="0" value="1" style="width:64px" title="People needed"><label><input id="mx" type="checkbox"> Exclusive</label><button class="p" id="madd">Add ministry</button></div></div>
+ <div class="card"><h3>People</h3><div style="overflow-x:auto"><table class="rec"><tr><th>Name</th><th>Family</th>${act.map(m=>`<th>${esc(m.l)}</th>`).join('')}<th></th></tr>`+pa.map(p=>`<tr><td><input data-pf="name" data-pid="${K(p.id)}" value="${K(p.name)}"></td><td><input type="number" min="0" style="width:60px" data-pf="fam" data-pid="${K(p.id)}" value="${p.family||0}"></td>${act.map(m=>`<td><input type="checkbox" data-pe="${K(m.k)}" data-pid="${K(p.id)}"${p.elig.includes(m.k)?' checked':''}></td>`).join('')}<td><button data-prm="${K(p.id)}">${cf=='p:'+p.id?'Confirm remove':'Remove'}</button></td></tr>`).join('')+`</table></div><div class="l"><input id="pn" placeholder="New person’s name"><input id="pf" type="number" min="0" placeholder="Family" style="width:84px"><button class="p" id="padd">Add person</button></div>${pg.length?'<div class="mut">Removed people</div>'+pg.map(p=>`<div class="l">${esc(p.name)}<button data-prs="${K(p.id)}">Restore</button></div>`).join(''):''}</div>`}
+function record(){const M=Mall,ds=Object.keys(ros).sort(),nx=ds.find(x=>x>=today())||'',up=ds.filter(d=>!nx||d<=nx),sd=d=>new Date(d+'T00:00:00Z').toLocaleDateString('en-ZA',{day:'numeric',month:'short',timeZone:'UTC'});
+ if(!ds.length)return'<div class="card"><p class="mut">No Sundays generated yet.</p></div>';
+ const ab={};M().forEach(m=>ab[m.k]=m.l.split(/[ \/&]+/).map(w=>w[0]).join('').slice(0,2));
+ const rows=Object.values(people).map(p=>{const cells=ds.map(d=>M().filter(m=>(ros[d].s[m.k]||[]).includes(p.id)).map(m=>m.k));let run=0,best=0,tot=0,last='';
+  up.forEach((d,i)=>{if(cells[i].length){run++;tot++;last=d;best=Math.max(best,run)}else run=0});return{p,cells,run,best,tot,last}})
+  .filter(x=>(x.p.elig.length&&!x.p.gone)||x.tot||x.cells.some(c=>c.length)).sort((a,b)=>b.run-a.run||a.p.name.localeCompare(b.p.name));
+ const x0=rows.find(r=>r.p.id==pick),cnt={};let det='';
+ if(x0){x0.cells.forEach((c,i)=>{if(up.includes(ds[i]))c.forEach(k=>cnt[k]=(cnt[k]||0)+1)});
+  det=`<div class="card"><h3>${esc(x0.p.name)}</h3><div class="mut">Run ${x0.run} · Longest ${x0.best} · Total ${x0.tot} · Last served ${x0.last?fmt(x0.last):'never'}</div>
+  <div class="l">${M().map(m=>`<span style="border:1px solid var(--bd);border-radius:14px;padding:3px 10px">${esc(m.l)}: ${cnt[m.k]||0}</span>`).join('')}</div>
+  <div style="overflow-x:auto"><table class="rec"><tr><th>Sunday</th><th>Serving</th><th>Note</th></tr>${ds.slice().reverse().map(d=>{const c=x0.cells[ds.indexOf(d)];return`<tr class="${up.includes(d)?'':'fu'}"><td>${fmt(d)}</td><td>${c.length?c.map(k=>esc(M().find(m=>m.k==k).l)).join(' + '):(isAway(x0.p.id,d)?'Away':'-')}</td><td style="text-align:left;white-space:pre-wrap">${esc(ros[d].note||'')}</td></tr>`}).join('')}</table></div></div>`}
+ const ns=nd&&ds.includes(nd)?nd:(nx||ds[ds.length-1]),wn=ds.filter(d=>ros[d].note||ros[d].verse);
+ const nt=`<div class="card"><h3>Sunday verses and notes</h3><div class="mut">Each verse and note belongs to one Sunday and is kept permanently. Choose a Sunday to read or edit them.</div><div class="l"><select id="nsel">${ds.map(d=>`<option value="${d}"${d==ns?' selected':''}>${fmt(d)}</option>`).join('')}</select></div><b>Verse</b>${verseBox(ns)}<b>Notes</b>${noteBox(ns)}${wn.length?'<div class="mut">All verses and notes</div>'+wn.map(d=>`<div class="l"><b>${fmt(d)}</b><span style="white-space:pre-wrap">${ros[d].verse?'<i>'+esc(ros[d].verse)+'</i> ':''}${esc(ros[d].note||'')}</span></div>`).join(''):''}</div>`;
+ return`<div class="card"><h3>Service record</h3><div class="l">Optional highlight: runs of <input id="thr" type="number" min="0" max="12" value="${thr}" style="width:64px"> or more Sundays (0 = off)</div>
+ <div class="mut">Run = consecutive Sundays served up to ${nx?fmt(nx):'the last Sunday'} (an away Sunday or a Sunday off resets it). Later columns are planned and dimmed. Ministries: ${M().map(m=>ab[m.k]+' = '+esc(m.l)).join(', ')}. Sorted by current run.</div>${flSum(ds)}</div>
+ <div style="overflow-x:auto"><table class="rec"><tr><th>Name</th><th>Run</th><th>Longest</th><th>Total</th><th>Last served</th>${ds.map(d=>`<th class="${up.includes(d)?'':'fu'}">${sd(d)}</th>`).join('')}</tr>`+flagRow(ds)+
+ rows.map(x=>`<tr><td data-pick="${esc(x.p.id)}" style="cursor:pointer;${x.p.id==pick?'font-weight:700;text-decoration:underline':''}" title="Click for details">${thr>0&&x.run>=thr?'<span class="fl">⚑</span> ':''}${esc(x.p.name)}</td><td class="${thr>0&&x.run>=thr?'fl':''}">${x.run}</td><td>${x.best}</td><td>${x.tot}</td><td>${x.last?sd(x.last):'-'}</td>${x.cells.map((c,i)=>`<td class="${c.length?'hit':''}${isAway(x.p.id,ds[i])?' aw':''}${up.includes(ds[i])?'':' fu'}">${c.map(k=>ab[k]).join('+')}</td>`).join('')}</tr>`).join('')+'</table></div>'+fdet()+det+nt}
+function serving(){const d=Object.keys(ros).sort().find(x=>x>=today());
+ if(!d)return'<div class="card"><p class="mut">No upcoming Sunday has been generated yet.</p></div>';
+ const r=ros[d],{out,sum}=issues(d),on={},MS=Ms(d);MS.forEach(m=>(r.s[m.k]||[]).forEach(i=>on[i]=m.l));
+ return`<div class="l noprint"><button class="p" id="pdf" data-d="${d}">Export PDF</button><button id="sedit">${sedit?'Done editing':'Edit'}</button></div>
+ <section class="card sv"><h3>${fmt(d)}</h3>${r.verse?`<p style="white-space:pre-wrap;font-style:italic">${esc(r.verse)}</p>`:''}${sedit&&sum.length?`<div class="warn noprint">⚠ ${esc(sum.join(' · '))}</div>`:''}`+MS.map(m=>{
+  const ids=r.s[m.k]||[],opts=Object.values(people).filter(p=>!p.gone&&p.elig.includes(m.k)&&!ids.includes(p.id)).sort((a,b)=>a.name.localeCompare(b.name));
+  return`<div class="row"><b>${esc(m.l)}</b><div>${ids.map(i=>`<span${out[i]&&sedit?' class="warn"':''}>${esc(Pn(d,i))}${sedit?`<span class="x" data-srm="${m.k}|${esc(i)}" data-d="${d}" title="Remove">✕</span>`:''}</span>`).join(', ')||'<span class="mut">Unfilled</span>'}
+  ${sedit?`<div class="l noprint"><select id="sa-${m.k}"><option value="">Add…</option>${opts.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}${isAway(p.id,d)?' (away)':on[p.id]?' (also: '+esc(on[p.id])+')':''}</option>`).join('')}</select><button data-sadd="${m.k}" data-d="${d}">Add</button></div>`:''}</div></div>`}).join('')+'</section><div class="card noprint"><b>Verse for this Sunday</b><div class="mut">Shown at the top of the PDF.</div>'+verseBox(d)+'</div><div class="card noprint"><b>Notes for this Sunday</b>'+noteBox(d)+'</div>'}
+async function pdf(d){const J=window.jspdf&&window.jspdf.jsPDF;if(!J||!dl)return;const p=new J(),r=ros[d];let y=24;
+ if(r.verse){p.setFontSize(12);p.setFont(undefined,'italic');const L=p.splitTextToSize(r.verse,170);p.text(L,20,y);y+=L.length*6+8;p.setFont(undefined,'normal')}
+ p.setFontSize(18);p.text('Walkerville Church Plant',20,y);y+=9;p.setFontSize(13);p.text('Serving: '+fmt(d),20,y);y+=14;
+ Ms(d).forEach(m=>{p.setFont(undefined,'bold');p.setFontSize(12);p.text(m.l,20,y);p.setFont(undefined,'normal');p.text((r.s[m.k]||[]).map(i=>Pn(d,i)).join(', ')||'-',85,y);y+=10});
+ if(r.note){y+=4;p.setFont(undefined,'bold');p.text('Notes',20,y);p.setFont(undefined,'normal');y+=8;p.text(p.splitTextToSize(r.note,170),20,y)}
+ await dl.save({filename:'serving-'+d+'.pdf',data:p.output('blob')})}
+document.addEventListener('click',async e=>{const t=e.target,c=t.closest('.chip'),dr=t.closest('[data-drop]');if(t.closest('input,textarea,select,label'))return;
+ try{if(t.dataset.t){tab=t.dataset.t;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b==t))}
+ else if(t.id=='gen')await genMissing();else if(t.id=='past')past=!past;
+ else if(t.id=='csv'){const all=Object.values(ros),ms=Mall().filter(m=>!m.gone||all.some(r=>(r.s[m.k]||[]).length)),rows=[['Date',...ms.map(m=>m.l)],...all.sort(byD).map(r=>[r.date,...ms.map(m=>(r.s[m.k]||[]).map(i=>Pn(r.date,i)).join(' & '))])];
+  dl&&dl.save({filename:'sunday-roster.csv',data:rows.map(r=>r.map(x=>'"'+x.replace(/"/g,'""')+'"').join(',')).join('\n')}).catch(()=>{})}
+ else if(t.dataset.regen){if(cf==t.dataset.regen){cf=null;await regen(t.dataset.regen)}else cf=t.dataset.regen}
+ else if(t.id=='aadd'){const f=$('#af').value,to=$('#at').value||f;if(f&&to>=f){await db.collection('away').add({person:$('#ap').value,from:f,to,note:$('#an').value});logit('Away: '+people[$('#ap').value].name+' '+f+(to!=f?' to '+to:''))}}
+ else if(t.dataset.del){await db.doc('away/'+t.dataset.del).delete();logit('Removed an away entry')}
+ else if(t.id=='sedit')sedit=!sedit;else if(t.id=='pdf')await pdf(t.dataset.d);
+ else if(t.dataset.srm){const[k,...i]=t.dataset.srm.split('|');await move(t.dataset.d,i.join('|'),k,'')}
+ else if(t.dataset.sadd){const v=$('#sa-'+t.dataset.sadd).value;if(v)await move(t.dataset.d,v,'',t.dataset.sadd)}
+ else if(t.dataset.vsave){const d=t.dataset.vsave,v=drafts['v'+d]??ros[d]?.verse??'';await withLock(db.doc('rosters/'+d),ref=>ref.update({verse:v}));delete drafts['v'+d];logit('Verse saved for '+fmt(d)+(v?': '+v.slice(0,200):' (cleared)'))}
+ else if(t.dataset.nsave){const d=t.dataset.nsave;await withLock(db.doc('rosters/'+d),ref=>ref.update({note:drafts[d]??ros[d]?.note??''}));delete drafts[d];logit('Note saved for '+fmt(d))}
+ else if(t.closest('[data-fl]')){const k=t.closest('[data-fl]').dataset.fl;fd=fd==k?'':k}
+ else if(t.closest('[data-pick]')){const k=t.closest('[data-pick]').dataset.pick;pick=pick==k?'':k}
+ else if(t.id=='padd'){const n=$('#pn').value.trim();if(n){let id=n.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'person';while(people[id])id+='-2';await db.doc('people/'+id).set({name:n,family:+$('#pf').value||0,elig:[]});logit('Added person: '+n)}}
+ else if(t.dataset.prm){const id=t.dataset.prm;if(cf=='p:'+id){cf=null;await db.doc('people/'+id).update({gone:true});logit('Removed person: '+people[id].name)}else cf='p:'+id}
+ else if(t.dataset.prs){await db.doc('people/'+t.dataset.prs).update({gone:false});logit('Restored person: '+people[t.dataset.prs].name)}
+ else if(t.id=='madd'){const n=$('#mn').value.trim();if(n){await saveM(ms=>ms.push({k:'m'+Date.now().toString(36),l:n,n:Math.max(0,+$('#mc').value||1),x:$('#mx').checked?1:0}));logit('Added ministry: '+n)}}
+ else if(t.dataset.mrm){const k=t.dataset.mrm;if(cf=='m:'+k){cf=null;await saveM(ms=>{const m=ms.find(m=>m.k==k);if(m)m.gone=true});logit('Removed ministry: '+Mall().find(m=>m.k==k).l)}else cf='m:'+k}
+ else if(t.dataset.mrs){const k=t.dataset.mrs;await saveM(ms=>{const m=ms.find(m=>m.k==k);if(m)m.gone=false});logit('Restored ministry: '+Mall().find(m=>m.k==k).l)}
+ else if(c){sel=sel&&sel.id==c.dataset.id&&sel.d==c.dataset.d&&sel.k==c.dataset.k?null:{id:c.dataset.id,d:c.dataset.d,k:c.dataset.k}}
+ else if(dr&&sel&&sel.d==dr.dataset.d)await move(sel.d,sel.id,sel.k,dr.dataset.drop)}catch(x){fail(x)}
+ render()});
+document.addEventListener('change',async e=>{const t=e.target,d=t.dataset||{};
+ if(t.id=='thr'){thr=Math.max(0,+t.value||0);render()}if(t.id=='nsel'){nd=t.value;render()}
+ try{const p=people[d.pid],pr='people/'+d.pid;
+  if(d.pf=='name'&&t.value.trim()){await db.doc(pr).update({name:t.value.trim()});logit('Renamed '+p.name+' to '+t.value.trim())}
+  else if(d.pf=='fam'){await db.doc(pr).update({family:+t.value||0});logit('Family number for '+p.name+' set to '+(+t.value||0))}
+  else if(d.pe){const want=t.checked;await withLock(db.doc(pr),async ref=>{const c=await ref.get();if(!c.exists)return;const cu=c.data().elig||[],el=want?(cu.includes(d.pe)?cu:[...cu,d.pe]):cu.filter(k=>k!=d.pe);await ref.update({elig:el})});logit(p.name+(t.checked?' can now serve in ':' can no longer serve in ')+(Mall().find(m=>m.k==d.pe)?.l||d.pe))}
+  else if(d.mf){const k=d.mk;await saveM(ms=>{const m=ms.find(x=>x.k==k);if(d.mf=='l'&&t.value.trim())m.l=t.value.trim();if(d.mf=='n')m.n=Math.max(0,+t.value||0);if(d.mf=='x')m.x=t.checked?1:0});logit('Updated ministry settings: '+(d.mf=='l'?t.value:Mall().find(m=>m.k==k)?.l))}
+ }catch(x){fail(x)}});
+document.addEventListener('input',e=>{const D=e.target.dataset||{};if(D.note)drafts[D.note]=e.target.value;if(D.verse)drafts['v'+D.verse]=e.target.value});
+document.addEventListener('dragstart',e=>{const c=e.target.closest?.('.chip');if(c)sel={id:c.dataset.id,d:c.dataset.d,k:c.dataset.k}});
+document.addEventListener('dragover',e=>{if(e.target.closest?.('[data-drop]'))e.preventDefault()});
+document.addEventListener('drop',async e=>{const dr=e.target.closest?.('[data-drop]');if(dr&&sel&&sel.d==dr.dataset.d){e.preventDefault();await move(sel.d,sel.id,sel.k,dr.dataset.drop)}});
+(async()=>{try{[db,user,dl]=await Promise.all([claude.use('db'),claude.use('user'),claude.use('downloads')])}catch(e){}
+ if(!db){$('#v').innerHTML='<p class="mut">Sign in to claude.ai to use the roster.</p>';return}
+ try{me=await user.id()}catch(e){}
+ const col=(p,f,q)=>(q||db.collection(p)).onSnapshot(s=>{f(s);ready=true;render()});
+ db.doc('config/main').onSnapshot(s=>{cfg=s.exists?s.data():null;L.c=1;ready=true;render();autoLock()});
+ col('people',s=>{people={};s.docs.forEach(d=>people[d.id]={id:d.id,...d.data()});L.p=1;autoLock()});
+ col('rosters',s=>{ros={};s.docs.forEach(d=>{const x=d.data();if(x&&x.s)ros[d.id]=x});L.r=1;autoLock()});
+ col('away',s=>{away={};s.docs.forEach(d=>away[d.id]=d.data())});
+ col('history',async s=>{log=s.docs.map(d=>d.data());const ids=[...new Set(log.map(h=>h.by).filter(Boolean))];
+  try{const ps=await user.profiles(ids);ids.forEach(i=>names[i]=ps[i]?.name||'')}catch(e){}},db.collection('history').orderBy('ts','desc').limit(200))})();
+</script></body></html>

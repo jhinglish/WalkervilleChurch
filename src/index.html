@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Walkerville Sunday Roster</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{--bg:#fafaf7;--fg:#1d1d1b;--mut:#6b6b66;--card:#fff;--bd:#dcdcd4;--ac:#2f5d50;--bad:#b3261e;--warn:#9a6200;--chip:#e3ede6;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light dark}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161716;--fg:#ecece6;--mut:#9a9a92;--card:#1f201f;--bd:#383a37;--ac:#7fc4ad;--bad:#ff8a80;--warn:#f0b955;--chip:#2a3a33}}
+:root[data-theme="dark"]{--bg:#161716;--fg:#ecece6;--mut:#9a9a92;--card:#1f201f;--bd:#383a37;--ac:#7fc4ad;--bad:#ff8a80;--warn:#f0b955;--chip:#2a3a33}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:980px;margin:0 auto;padding:14px}
+h1{font-size:20px;margin:0 0 2px}h3{margin:0 0 8px;font-size:16px}.mut{color:var(--mut);font-size:13px}
+nav{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+button,select,input{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:6px 10px}
+button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color:var(--ac)}button.on{border-color:var(--ac);font-weight:600}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin:0 0 12px}
+.row{display:grid;grid-template-columns:150px 1fr;gap:8px;padding:6px 0;border-top:1px solid var(--bd);align-items:start}
+.drop{min-height:34px;display:flex;gap:6px;flex-wrap:wrap;padding:4px;border:1px dashed var(--bd);border-radius:8px}
+.chip{background:var(--chip);border:1px solid transparent;border-radius:14px;padding:3px 10px;cursor:pointer;user-select:none}
+.chip.bad{border-color:var(--bad);color:var(--bad)}.chip.on{outline:2px solid var(--ac)}.chip.aw{opacity:.55;text-decoration:line-through}
+.warn{color:var(--warn);font-size:13px}.bench .chip{background:transparent;border-color:var(--bd)}
+.l{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
+.sv{font-size:17px}.sv .row{grid-template-columns:minmax(110px,200px) 1fr}.x{margin-left:5px;cursor:pointer;color:var(--bad)}
+.rec{border-collapse:collapse;font-size:13px}.rec th,.rec td{border:1px solid var(--bd);padding:3px 7px;text-align:center;white-space:nowrap}.rec th:first-child,.rec td:first-child{position:sticky;left:0;background:var(--card);text-align:left}.rec .aw{background:repeating-linear-gradient(45deg,transparent 0 4px,var(--bd) 4px 5px)}.rec .fu{opacity:.55}.rec .hit{background:var(--chip);font-weight:600}.fl{color:var(--bad);font-weight:600}
+@media(max-width:560px){.row{grid-template-columns:1fr}}
+@media print{nav,.noprint,button{display:none}}
+</style></head><body><main>
+<h1>Walkerville Sunday Roster</h1>
+<div class="mut">Tap a name, then tap the ministry box to move them (dragging works too). Drop on “Not serving” to remove. Red = conflict.</div>
+<nav><button data-t="s" class="on">Serving</button><button data-t="r">Roster</button><button data-t="a">Away</button><button data-t="v">Service record</button><button data-t="h">Admin</button></nav>
+<div id="fl" class="warn noprint"></div><div id="v"></div></main>
+<!-- @APP_SCRIPT@ -->
+</body></html>
