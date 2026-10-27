@@ -1,0 +1,76 @@
+# ------------------------------------------------------------------
+# Walkerville Sunday Roster
+#
+# TRACKED ON PURPOSE (private repo only, see README > Privacy):
+#   Sunday_Ministries.xlsx   member names and eligibility (seed workbook)
+#   Artifact_Link            URL of the published claude.ai artifact
+# Do not add ignore rules for these two files.
+# ------------------------------------------------------------------
+
+# --- Data exports and database dumps (never commit) ---
+*.csv
+*.tsv
+db-export*.json
+*-export.json
+backups/
+exports/
+
+# --- Excel / Office temp and lock files (not the workbook itself) ---
+~$*
+.~lock.*#
+*.tmp
+
+# --- Secrets and credentials ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials*.json
+
+# --- OS files ---
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# --- Editors and IDEs ---
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-workspace
+
+# --- Node and TypeScript tooling (for the planned TypeScript build) ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+.eslintcache
+.cache/
+*.tsbuildinfo
+coverage/
+# dist/ is intentionally NOT ignored: the single-file index.html that is
+# published to claude.ai may be committed from there. Revisit once a build exists.
+
+# --- Logs, scratch and backups ---
+*.log
+tmp/
+temp/
+*.bak
+*.orig
+*.rej
