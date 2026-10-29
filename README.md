@@ -2,9 +2,9 @@
 
 A single-file web tool that builds and maintains a rotating Sunday-morning ministry roster for Walkerville Church Plant. It auto-generates a rolling three months of Sundays, lets you move people around by hand, tracks who is away, records who has served, flags Sundays that need attention, and prints a one-page "who is serving this Sunday" PDF.
 
-The source lives in a **private GitHub repository**. The running app is a **claude.ai Artifact** published from that source, and its live data lives in the artifact's database (not in the repository).
+The source lives in a **private GitHub repository named `WalkervilleChurch`**. The running app is a **claude.ai Artifact** published from that source, and its live data lives in the artifact's database (not in the repository).
 
-> **Important:** this app is built as a **claude.ai Artifact** and depends on the Artifact runtime (`window.claude`) for its database, user identity and file downloads. Cloning this repo and opening `index.html` in a browser will show a sign-in message, not the app. See [Running it](#running-it) and [Porting off claude.ai](#porting-off-claudeai).
+> **Important:** this app is built as a **claude.ai Artifact** and depends on the Artifact runtime (`window.claude`) for its database, user identity and file downloads. Cloning this repo and opening `dist/index.html` in a browser will show a sign-in message, not the app. See [Running it](#running-it) and [Porting off claude.ai](#porting-off-claudeai).
 
 > **Privacy:** this repository contains members' names (in `Sunday_Ministries.xlsx`). It must stay **private**. See [Privacy](#privacy).
 
@@ -67,7 +67,7 @@ The source lives in a **private GitHub repository**. The running app is a **clau
 
 ### As intended: claude.ai Artifact
 
-1. Publish `index.html` from the `main` branch as an Artifact on claude.ai (private to you until you choose to share it). The published link is recorded in `Artifact_Link`; see [Deployment](#deployment-publishing-to-claudeai) for the update procedure.
+1. Publish `dist/index.html` from the `main` branch as an Artifact on claude.ai (private to you until you choose to share it). It is built from `src/` by `npm run build`. The published link is recorded in `Artifact_Link`; see [Deployment](#deployment-publishing-to-claudeai) for the update procedure.
 2. Declare these runtime capabilities (inferred from the code, so confirm against your own artifact's settings):
    - `db`: shared documents, realtime snapshots, and short-lived document leases (`acquire`) used for safe generation
    - `user`: viewer identity, used to attribute change-log entries and to check write permission
@@ -81,7 +81,7 @@ People who use the tool must be able to sign in to claude.ai (organisation membe
 
 ### Locally
 
-`index.html` alone will not work. The code calls `claude.use('db')`, which only exists inside the Artifact runtime. Without it the page shows "Sign in to claude.ai to use the roster."
+`dist/index.html` alone will not work. The code calls `claude.use('db')`, which only exists inside the Artifact runtime. Without it the page shows "Sign in to claude.ai to use the roster."
 
 ## Using each tab
 
@@ -115,13 +115,13 @@ The system has three parts, and each has one job:
 
 Application design:
 
-- One self-contained `index.html`: HTML, CSS and vanilla JavaScript, no build step. This is the deployed file; a TypeScript port is in progress under `src/` (see issue 9).
+- The source is strictly typed TypeScript under `src/` (see [Source of truth](#source-of-truth)). `npm run build` bundles it into one self-contained `dist/index.html` (HTML, CSS and one inline script), which is what is published.
 - The only external dependency is [jsPDF 2.5.1](https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js) from cdnjs, used for PDF export.
 - State lives in the Artifact `db`. The page subscribes with `onSnapshot` to `people`, `rosters`, `away`, `history` (latest 200) and `config/main`, keeps in-memory copies, and **re-renders the whole view** on every change. Roster documents without an `s` field are ignored.
 - Rendering is string-template `innerHTML`. A single document-level click, change, input and drag/drop handler set drives all interaction.
 - The roster generator runs in the browser.
-- Per-Sunday display resolves through three helpers: `Ms(date)` (the ministries for that Sunday), `Pn(date, id)` (a person's name for that Sunday) and `Pe(date, id)` (their eligibility for that Sunday). Each prefers the Sunday's own snapshot and falls back to live data only for Sundays that have none.
-- Local UI state (selected tab, selection, open flagged Sunday, unsaved verse/note drafts) is held in JS variables only.
+- Per-Sunday display resolves through three helpers in `src/model.ts`: `ministriesForSunday` (the ministries for that Sunday), `personName` (a person's name for that Sunday) and `personEligibility` (their eligibility for that Sunday). Each prefers the Sunday's own snapshot and falls back to live data only for Sundays that have none.
+- Local UI state (selected tab, selection, open flagged Sunday, unsaved verse/note drafts) is held in `src/state.ts` only (never saved).
 
 ## Source control and deployment (GitHub)
 
@@ -129,8 +129,10 @@ Application design:
 
 | File | Purpose | Sensitive? |
 |---|---|---|
-| `index.html` | The whole deployed app (HTML, CSS, JS) | No |
-| `src/`, `tsconfig.json`, `package.json` | In-progress TypeScript port (markup, data-model types, runtime types) | No |
+| `dist/index.html` | The built single-file app that is published (generated by `npm run build`; commit it with the source change) | No |
+| `src/` | The application source: strictly typed TypeScript, the markup and CSS, and unit tests | No |
+| `scripts/build.mjs` | Bundles `src/` into `dist/index.html` | No |
+| `tsconfig.json`, `package.json` | Strict TypeScript settings and the npm scripts | No |
 | `README.md`, `CHANGELOG.md` | Documentation and release notes | No |
 | `Sunday_Ministries.xlsx` | Seed workbook: people, family numbers, eligibility | **Yes: member names** |
 | `Artifact_Link` | URL of the published artifact | Treat as private |
@@ -152,7 +154,46 @@ Git history is permanent. A file that is committed and later deleted can still b
 - Protect `main`: block force-pushes and branch deletion; require pull requests if more than one person contributes.
 - Turn on secret scanning and push protection.
 - Keep collaborators to the minimum needed, with the lowest role that works; require two-factor authentication on every account with access.
-- Enable Dependabot alerts if a `package.json` is ever added.
+- Dependabot alerts are worth enabling: `package.json` now has dev dependencies (TypeScript, Vitest, esbuild).
+
+### Source of truth
+
+`src/` is the only place the app is edited. `npm run build` turns it into the single self-contained `dist/index.html` that claude.ai needs. That built file is committed, because publishing is manual and having the exact published file in Git makes it easy to hand over and compare. Never edit `dist/index.html` by hand.
+
+The move from the original JavaScript to TypeScript is finished and published:
+
+| Stage | Status |
+|---|---|
+| 1. Markup and CSS (`src/index.html`) | Done |
+| 2. Data-model and runtime types (`src/types.ts`, `src/claude.d.ts`) | Done |
+| 3. Pure logic with tests (`src/dates.ts`, `model.ts`, `issues.ts`, `generate.ts`) | Done |
+| 4. UI and database code (`src/main.ts`, `store.ts`, `handlers.ts`, `views/`, and friends) | Done |
+| 5. Build step and switch-over | Done: published on 2026-10-29, and the published artifact is byte-identical to `dist/index.html` |
+
+Rules for changes:
+
+- Edit `src/`, run `npm run check` (type-check, tests and build), and commit `src/` and the rebuilt `dist/index.html` together.
+- Publish `dist/index.html` to the existing artifact (see [Deployment](#deployment-publishing-to-claudeai)).
+- The original single-file JavaScript version, and the browser and equivalence checks used to prove the port matched it, are in Git history at the tag `pre-typescript`.
+
+### Local development
+
+The repository is named `WalkervilleChurch`. You need Node 20 or later.
+
+```
+git clone git@github.com:jhinglish/WalkervilleChurch.git
+cd WalkervilleChurch
+npm install
+npm run check
+```
+
+| Command | What it does |
+|---|---|
+| `npm run typecheck` | Strict TypeScript check of `src/` (no files are emitted) |
+| `npm test` | Runs the unit tests with Vitest |
+| `npm run test:watch` | Re-runs the tests as you edit |
+| `npm run build` | Bundles `src/` into the single page `dist/index.html` that claude.ai needs |
+| `npm run check` | Type-check, tests and build; run it before every commit |
 
 ### Branching and commits
 
@@ -166,15 +207,15 @@ Git history is permanent. A file that is committed and later deleted can still b
 
 Publishing is a manual step; there is no automatic pipeline yet.
 
-1. Merge the change to `main` and confirm `CHANGELOG.md` is up to date.
-2. In claude.ai, open this project and ask Claude to publish `index.html` to the **existing** artifact at the link in `Artifact_Link`, so the link and the sharing settings stay the same. Do not create a new artifact for an update.
+1. Merge the change to `main` and confirm `CHANGELOG.md` is up to date and `dist/index.html` was rebuilt (`npm run check`).
+2. In claude.ai, open this project and ask Claude to publish `dist/index.html` to the **existing** artifact at the link in `Artifact_Link`, so the link and the sharing settings stay the same. Do not create a new artifact for an update.
 3. If the capabilities (`db`, `user`, `downloads`) have changed, confirm they are still declared.
 4. Open the artifact, check each tab loads and the live data is intact, then tag the release.
 5. If the artifact URL ever changes, update `Artifact_Link` in the same commit.
 
-**Keep the repository and the artifact in sync.** The repository is the source of truth. Do not edit the artifact directly. If a quick fix is made in claude.ai, copy the result back into `index.html` and commit it straight away, or the next publish will silently undo it. To check for drift, ask Claude to read the published artifact and compare it with `index.html` on `main`.
+**Keep the repository and the artifact in sync.** The repository is the source of truth. Do not edit the artifact directly. If a quick fix is made in claude.ai, copy the change into `src/`, rebuild and commit it straight away, or the next publish will silently undo it. To check for drift, ask Claude to read the published artifact and compare it with `dist/index.html` on `main`.
 
-**Database changes are not deployed from Git.** Publishing a new `index.html` never touches the live data. Anything stored in the database (people, rosters, away entries) is changed only through the app. The workbook is a seed, not a sync source (see issue 4 below).
+**Database changes are not deployed from Git.** Publishing a new `dist/index.html` never touches the live data. Anything stored in the database (people, rosters, away entries) is changed only through the app. The workbook is a seed, not a sync source (see issue 4 below).
 
 ## Data model
 
@@ -280,8 +321,8 @@ Highest priority first.
 5. **Render pipeline.** Every snapshot re-renders everything and wipes unsaved form inputs (except verse/note drafts). `render()` has no error handling, so one malformed document can blank the UI.
 6. **Generation is manual and non-atomic.** The window only extends when someone presses Generate, and the sequential writes can leave a partial set (it is safe to press Generate again).
 7. **Snapshot gaps.** The Service record still shows ministry labels live; the lease used for generation is cooperative only; Sundays locked automatically capture the settings at the moment of first open.
-8. **Manual deployment, no CI, no tests.** Publishing to claude.ai is a manual step and nothing automatically checks `index.html` before it goes live. Consider a GitHub Actions workflow for HTML validation and secret scanning, and unit tests for the generator and issue-detection logic once they are separable from the UI.
-9. **Source language.** The deployed `index.html` is JavaScript inside HTML. The project standard is strictly typed TypeScript in separate HTML and TS files, with a build step that produces the single file the artifact needs. Stages 1 and 2 are done: `src/index.html` (markup and CSS), `src/types.ts` (data model) and `src/claude.d.ts` (runtime types), plus `tsconfig.json` and `package.json`. Still to do: port the logic (pure functions first, with unit tests), port the UI, and add the esbuild step. Until then the root `index.html` is the source of truth and every change to it must be mirrored in `src/`.
+8. **Manual deployment, no CI.** Publishing to claude.ai is a manual step. Unit tests cover dates, model helpers, issue detection and generation (`npm test`), but nothing runs them automatically. Add a GitHub Actions workflow that runs `npm run check` on every push, plus HTML validation and secret scanning. The UI and database code have no automated tests. They were checked once, at the switch-over, by running the original page and the new build side by side in a headless browser against an in-memory stand-in for the runtime (all 63 states identical). That stand-in is in Git history at the tag `pre-typescript`, under `scripts/ui-compare/`, and is a good base for a Playwright smoke test.
+9. **Page size.** The built page is about 54 KB because it is not minified. Set `minify: true` in `scripts/build.mjs` if size ever matters.
 10. **Minor:** family `0` is treated as a real family by the generator; dates use UTC rather than South African time; ministry abbreviations in the Service record can collide; the Away dropdown excludes people with no eligibility; away entries are never pruned.
 
 ## Porting off claude.ai
@@ -298,13 +339,32 @@ Add real authentication and per-collection write rules at the same time (see iss
 
 ```
 WalkervilleChurch/
-├── index.html              # the deployed app (HTML, CSS, JS): source of truth until the TS port lands
+├── dist/
+│   └── index.html          # the built single-file app that is published (generated; commit it)
 ├── src/
-│   ├── index.html          # TS port, stage 1: markup and CSS, with a script placeholder for the build
-│   ├── types.ts            # TS port, stage 2: data model types
-│   └── claude.d.ts         # TS port, stage 2: types for the claude.ai runtime and jsPDF
+│   ├── index.html          # markup and CSS, with a script placeholder for the build
+│   ├── types.ts            # data model types
+│   ├── claude.d.ts         # types for the claude.ai runtime and jsPDF
+│   ├── dates.ts            # date helpers and the rolling three-month window
+│   ├── model.ts            # per-Sunday ministries, snapshots, names, eligibility, away check
+│   ├── issues.ts           # problem detection and flag counting
+│   ├── generate.ts         # the rotation generator
+│   ├── parse.ts            # turns database documents into typed objects, tolerating bad data
+│   ├── state.ts            # the one place the page keeps its data and view state
+│   ├── selectors.ts        # applies the pure logic to the current state
+│   ├── store.ts            # database: connect, subscribe, leases and every write
+│   ├── exports.ts          # PDF and CSV export
+│   ├── handlers.ts         # click, change, input and drag-and-drop handling
+│   ├── render.ts           # redraws the active tab
+│   ├── main.ts             # entry point
+│   ├── dom.ts, help.ts     # HTML escaping and banner helpers; the in-app help text
+│   ├── views/              # one file per tab (roster, serving, away, record, admin) plus shared boxes
+│   ├── *.test.ts           # Vitest unit tests for the pure modules
+│   └── test-fixtures.ts    # shared test data
+├── scripts/
+│   └── build.mjs           # bundles src/ into dist/index.html
 ├── tsconfig.json           # strict TypeScript settings (type-check only, no emit)
-├── package.json            # `npm run typecheck`; TypeScript is the only dependency so far
+├── package.json            # npm scripts and dev dependencies (TypeScript, Vitest, esbuild)
 ├── README.md               # this file
 ├── CHANGELOG.md            # user-visible changes, newest first
 ├── Sunday_Ministries.xlsx  # seed workbook (member names: private repo only)
@@ -326,4 +386,4 @@ This repository contains members' names and family groupings (in `Sunday_Ministr
 
 ## License
 
-No license has been chosen. Add one before making this repository public; until then, all rights are reserved by default. A public repository is not recommended while the workbook is tracked.
+None. This is a private project, so no license is needed for now (all rights are reserved by default). If the repository is ever made public, choose a license first and re-read the Privacy section: a public repository is not recommended while the workbook is tracked.

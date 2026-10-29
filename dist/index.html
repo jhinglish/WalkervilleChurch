@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Walkerville Sunday Roster</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{--bg:#fafaf7;--fg:#1d1d1b;--mut:#6b6b66;--card:#fff;--bd:#dcdcd4;--ac:#2f5d50;--bad:#b3261e;--warn:#9a6200;--chip:#e3ede6;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light dark}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161716;--fg:#ecece6;--mut:#9a9a92;--card:#1f201f;--bd:#383a37;--ac:#7fc4ad;--bad:#ff8a80;--warn:#f0b955;--chip:#2a3a33}}
+:root[data-theme="dark"]{--bg:#161716;--fg:#ecece6;--mut:#9a9a92;--card:#1f201f;--bd:#383a37;--ac:#7fc4ad;--bad:#ff8a80;--warn:#f0b955;--chip:#2a3a33}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:980px;margin:0 auto;padding:14px}
+h1{font-size:20px;margin:0 0 2px}h3{margin:0 0 8px;font-size:16px}.mut{color:var(--mut);font-size:13px}
+nav{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+button,select,input{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:6px 10px}
+button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color:var(--ac)}button.on{border-color:var(--ac);font-weight:600}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin:0 0 12px}
+.row{display:grid;grid-template-columns:150px 1fr;gap:8px;padding:6px 0;border-top:1px solid var(--bd);align-items:start}
+.drop{min-height:34px;display:flex;gap:6px;flex-wrap:wrap;padding:4px;border:1px dashed var(--bd);border-radius:8px}
+.chip{background:var(--chip);border:1px solid transparent;border-radius:14px;padding:3px 10px;cursor:pointer;user-select:none}
+.chip.bad{border-color:var(--bad);color:var(--bad)}.chip.on{outline:2px solid var(--ac)}.chip.aw{opacity:.55;text-decoration:line-through}
+.warn{color:var(--warn);font-size:13px}.bench .chip{background:transparent;border-color:var(--bd)}
+.l{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
+.sv{font-size:17px}.sv .row{grid-template-columns:minmax(110px,200px) 1fr}.x{margin-left:5px;cursor:pointer;color:var(--bad)}
+.rec{border-collapse:collapse;font-size:13px}.rec th,.rec td{border:1px solid var(--bd);padding:3px 7px;text-align:center;white-space:nowrap}.rec th:first-child,.rec td:first-child{position:sticky;left:0;background:var(--card);text-align:left}.rec .aw{background:repeating-linear-gradient(45deg,transparent 0 4px,var(--bd) 4px 5px)}.rec .fu{opacity:.55}.rec .hit{background:var(--chip);font-weight:600}.fl{color:var(--bad);font-weight:600}
+@media(max-width:560px){.row{grid-template-columns:1fr}}
+@media print{nav,.noprint,button{display:none}}
+</style></head><body><main>
+<h1>Walkerville Sunday Roster</h1>
+<div class="mut">Tap a name, then tap the ministry box to move them (dragging works too). Drop on “Not serving” to remove. Red = conflict.</div>
+<nav><button data-t="s" class="on">Serving</button><button data-t="r">Roster</button><button data-t="a">Away</button><button data-t="v">Service record</button><button data-t="h">Admin</button></nav>
+<div id="fl" class="warn noprint"></div><div id="v"></div></main>
+<script>
+"use strict";
+(() => {
+  // src/dom.ts
+  var ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  function esc(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (c) => ESCAPES[c] ?? c);
+  }
+  function $(selector) {
+    return document.querySelector(selector);
+  }
+  function valueOf(id) {
+    const el = document.getElementById(id);
+    return el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement ? el.value : "";
+  }
+  function isChecked(id) {
+    const el = document.getElementById(id);
+    return el instanceof HTMLInputElement && el.checked;
+  }
+  var flashTimer;
+  function flash(message) {
+    const el = $("#fl");
+    if (!el) return;
+    el.textContent = message;
+    window.clearTimeout(flashTimer);
+    flashTimer = window.setTimeout(() => {
+      el.textContent = "";
+    }, 6e3);
+  }
+  function fail(error) {
+    console.error(error);
+    flash(
+      error instanceof Error && error.message === "busy" ? "Someone else is editing right now. Please try again in a moment." : "That change could not be saved. Please try again."
+    );
+  }
+
+  // src/dates.ts
+  var DAY_MS = 864e5;
+  function addDays(date, days) {
+    return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
+  }
+  function todayIso(now = /* @__PURE__ */ new Date()) {
+    return now.toISOString().slice(0, 10);
+  }
+  function sundaysInWindow(start, today) {
+    const from = today > start ? today : start;
+    const end = /* @__PURE__ */ new Date(`${from}T00:00:00Z`);
+    end.setUTCMonth(end.getUTCMonth() + 3);
+    const last = end.toISOString().slice(0, 10);
+    const sundays = [];
+    for (let d = start; d <= last; d = addDays(d, 7)) sundays.push(d);
+    return sundays;
+  }
+  function formatDate(date) {
+    return (/* @__PURE__ */ new Date(`${date}T00:00:00Z`)).toLocaleDateString("en-ZA", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC"
+    });
+  }
+  function formatShortDate(date) {
+    return (/* @__PURE__ */ new Date(`${date}T00:00:00Z`)).toLocaleDateString("en-ZA", {
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC"
+    });
+  }
+
+  // src/model.ts
+  function allMinistries(config) {
+    return config?.ministries ?? [];
+  }
+  function activeMinistries(config) {
+    return allMinistries(config).filter((m) => !m.gone);
+  }
+  function isAway(away, id, date) {
+    return away.some((a) => a.person === id && a.from <= date && date <= a.to);
+  }
+  function ministriesForSunday(config, roster) {
+    if (!roster) return activeMinistries(config);
+    const count = (k) => (roster.s[k] ?? []).length;
+    const base = roster.meta?.m ? roster.meta.m.map((m) => ({ ...m })) : allMinistries(config).filter((m) => !m.gone || count(m.k) > 0).map((m) => ({ ...m }));
+    for (const k of Object.keys(roster.s)) {
+      if (!base.some((m) => m.k === k) && count(k) > 0) {
+        base.push({ k, l: allMinistries(config).find((m) => m.k === k)?.l || k, n: 0, x: 0 });
+      }
+    }
+    return base;
+  }
+  function takeSnapshot(config, people, roster) {
+    const ministries = roster ? ministriesForSunday(config, roster) : activeMinistries(config);
+    return {
+      m: ministries.map((m) => ({ k: m.k, l: m.l, n: m.n, x: m.x ? 1 : 0 })),
+      p: Object.fromEntries(people.map((p) => [p.id, { n: p.name, e: [...p.elig ?? []] }]))
+    };
+  }
+  function personName(roster, people, id) {
+    return roster?.meta?.p?.[id]?.n ?? people[id]?.name ?? id;
+  }
+  function personEligibility(roster, people, id) {
+    return roster?.meta?.p?.[id]?.e ?? people[id]?.elig;
+  }
+
+  // src/generate.ts
+  function generateAssignments(input) {
+    const { date, ministries, away, prior } = input;
+    const candidates = input.people.filter((p) => !p.gone);
+    const lastIndex = /* @__PURE__ */ new Map();
+    const timesServed = /* @__PURE__ */ new Map();
+    prior.forEach((roster, i) => {
+      for (const m of ministries) {
+        for (const id of roster.s[m.k] ?? []) {
+          lastIndex.set(m.k + id, i);
+          timesServed.set(id, (timesServed.get(id) ?? 0) + 1);
+        }
+      }
+    });
+    const poolSize = (m) => candidates.filter((p) => p.elig.includes(m.k)).length;
+    const order = [...ministries].sort((a, b) => (b.x ? 1 : 0) - (a.x ? 1 : 0) || poolSize(a) - poolSize(b));
+    const assignments = {};
+    const used = /* @__PURE__ */ new Set();
+    const inExclusive = /* @__PURE__ */ new Set();
+    for (const m of order) {
+      const slot = [];
+      assignments[m.k] = slot;
+      for (let n = 0; n < m.n; n++) {
+        let pool = candidates.filter(
+          (p) => p.elig.includes(m.k) && !isAway(away, p.id, date) && !slot.includes(p.id) && !inExclusive.has(p.id)
+        );
+        const fresh = pool.filter((p) => !used.has(p.id));
+        pool = m.x ? fresh : fresh.length ? fresh : pool;
+        if (pool.length === 0) break;
+        const score = (p) => (lastIndex.get(m.k + p.id) ?? -99) - (candidates.some((q) => q.family === p.family && used.has(q.id)) ? 1.5 : 0) + (timesServed.get(p.id) ?? 0) * 0.01;
+        pool.sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name));
+        const chosen = pool[0];
+        if (!chosen) break;
+        slot.push(chosen.id);
+        used.add(chosen.id);
+        if (m.x) inExclusive.add(chosen.id);
+      }
+    }
+    return assignments;
+  }
+
+  // src/issues.ts
+  function findIssues(roster, config, people, away) {
+    const ministries = ministriesForSunday(config, roster);
+    const out = {};
+    const sum = [];
+    const placedIn = {};
+    const add = (id, text2) => {
+      (out[id] ??= []).push(text2);
+    };
+    for (const m of ministries) {
+      for (const id of roster.s[m.k] ?? []) {
+        (placedIn[id] ??= []).push(m);
+        const person = people[id];
+        const eligible = personEligibility(roster, people, id);
+        if (!eligible) add(id, "Unknown person");
+        else if (person?.gone) add(id, "Removed from the people list");
+        else if (!eligible.includes(m.k)) add(id, `Not marked eligible for ${m.l}`);
+        if (isAway(away, id, roster.date)) add(id, "Marked away");
+      }
+    }
+    for (const [id, list] of Object.entries(placedIn)) {
+      if (list.length > 1) {
+        add(id, `Double-booked: ${list.map((m) => m.l).join(" + ")}`);
+        if (list.some((m) => m.x)) add(id, "Exclusive ministry clash");
+      }
+    }
+    for (const m of ministries) {
+      const placed = (roster.s[m.k] ?? []).length;
+      if (placed < m.n) sum.push(`${m.l} needs ${m.n - placed} more`);
+    }
+    return { out, sum };
+  }
+  function flagCount(issues) {
+    return issues.sum.length + Object.keys(issues.out).length;
+  }
+  function flaggedDates(dates, today, issuesFor) {
+    return dates.filter((d) => d >= today && flagCount(issuesFor(d)) > 0);
+  }
+
+  // src/state.ts
+  var state = {
+    db: null,
+    user: null,
+    downloads: null,
+    me: "",
+    cfg: null,
+    people: {},
+    ros: {},
+    away: {},
+    log: [],
+    names: {},
+    loaded: { config: false, people: false, rosters: false },
+    ready: false,
+    tab: "s",
+    sel: null,
+    past: false,
+    cf: null,
+    sedit: false,
+    thr: 0,
+    pick: "",
+    nd: "",
+    fd: "",
+    drafts: {}
+  };
+  var tabId = `t${Math.random().toString(36).slice(2)}`;
+
+  // src/selectors.ts
+  var peopleList = () => Object.values(state.people);
+  var awayList = () => Object.values(state.away);
+  var peopleByName = () => peopleList().sort((a, b) => a.name.localeCompare(b.name));
+  var allMinistriesNow = () => allMinistries(state.cfg);
+  var activeMinistriesNow = () => activeMinistries(state.cfg);
+  var rosterAt = (date) => state.ros[date] ?? { date, s: {} };
+  var ministriesOn = (date) => ministriesForSunday(state.cfg, state.ros[date]);
+  var nameOn = (date, id) => personName(state.ros[date], state.people, id);
+  var awayOn = (id, date) => isAway(awayList(), id, date);
+  function issuesOn(date) {
+    const roster = state.ros[date];
+    return roster ? findIssues(roster, state.cfg, state.people, awayList()) : { out: {}, sum: [] };
+  }
+  function flagsOn(date) {
+    const issues = issuesOn(date);
+    return { ...issues, n: flagCount(issues) };
+  }
+  var snapshotNow = (roster) => takeSnapshot(state.cfg, peopleList(), roster);
+  var windowDates = () => state.cfg ? sundaysInWindow(state.cfg.start, todayIso()) : [];
+  var generateOn = (date, prior) => generateAssignments({
+    date,
+    ministries: activeMinistries(state.cfg),
+    people: peopleList(),
+    away: awayList(),
+    prior
+  });
+  var byDate = (a, b) => a.date < b.date ? -1 : 1;
+
+  // src/exports.ts
+  async function exportPdf(date) {
+    const JsPdf = window.jspdf?.jsPDF;
+    const downloads = state.downloads;
+    if (!JsPdf || !downloads) return;
+    const pdf = new JsPdf();
+    const roster = rosterAt(date);
+    let y = 24;
+    if (roster.verse) {
+      pdf.setFontSize(12);
+      pdf.setFont(void 0, "italic");
+      const lines = pdf.splitTextToSize(roster.verse, 170);
+      pdf.text(lines, 20, y);
+      y += lines.length * 6 + 8;
+      pdf.setFont(void 0, "normal");
+    }
+    pdf.setFontSize(18);
+    pdf.text("Walkerville Church Plant", 20, y);
+    y += 9;
+    pdf.setFontSize(13);
+    pdf.text(`Serving: ${formatDate(date)}`, 20, y);
+    y += 14;
+    for (const m of ministriesOn(date)) {
+      pdf.setFont(void 0, "bold");
+      pdf.setFontSize(12);
+      pdf.text(m.l, 20, y);
+      pdf.setFont(void 0, "normal");
+      pdf.text((roster.s[m.k] ?? []).map((id) => nameOn(date, id)).join(", ") || "-", 85, y);
+      y += 10;
+    }
+    if (roster.note) {
+      y += 4;
+      pdf.setFont(void 0, "bold");
+      pdf.text("Notes", 20, y);
+      pdf.setFont(void 0, "normal");
+      y += 8;
+      pdf.text(pdf.splitTextToSize(roster.note, 170), 20, y);
+    }
+    await downloads.save({ filename: `serving-${date}.pdf`, data: pdf.output("blob") });
+  }
+  function exportCsv() {
+    const rosters = Object.values(state.ros);
+    const ministries = allMinistriesNow().filter((m) => !m.gone || rosters.some((r) => (r.s[m.k] ?? []).length));
+    const rows = [
+      ["Date", ...ministries.map((m) => m.l)],
+      ...rosters.sort(byDate).map((r) => [
+        r.date,
+        ...ministries.map(
+          (m) => (r.s[m.k] ?? []).map((id) => nameOn(r.date, id)).join(" & ")
+        )
+      ])
+    ];
+    const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
+    state.downloads?.save({ filename: "sunday-roster.csv", data: csv }).catch(() => {
+    });
+  }
+
+  // src/views/admin.ts
+  function adminTab() {
+    const all = allMinistriesNow();
+    const active = activeMinistriesNow();
+    const K = esc;
+    const people = peopleByName();
+    const present = people.filter((p) => !p.gone);
+    const removed = people.filter((p) => p.gone);
+    return `<div class="card"><h3>Ministries</h3><div style="overflow-x:auto"><table class="rec"><tr><th>Ministry</th><th>People needed</th><th>Exclusive</th><th></th></tr>` + all.map(
+      (m) => `<tr class="${m.gone ? "fu" : ""}"><td><input data-mf="l" data-mk="${K(m.k)}" value="${K(m.l)}"></td><td><input type="number" min="0" style="width:64px" data-mf="n" data-mk="${K(m.k)}" value="${m.n}"></td><td><input type="checkbox" data-mf="x" data-mk="${K(m.k)}"${m.x ? " checked" : ""}></td><td>${m.gone ? `<button data-mrs="${K(m.k)}">Restore</button>` : `<button data-mrm="${K(m.k)}">${state.cf === `m:${m.k}` ? "Confirm remove" : "Remove"}</button>`}</td></tr>`
+    ).join("") + `</table></div><div class="l"><input id="mn" placeholder="New ministry name"><input id="mc" type="number" min="0" value="1" style="width:64px" title="People needed"><label><input id="mx" type="checkbox"> Exclusive</label><button class="p" id="madd">Add ministry</button></div></div>
+ <div class="card"><h3>People</h3><div style="overflow-x:auto"><table class="rec"><tr><th>Name</th><th>Family</th>${active.map((m) => `<th>${esc(m.l)}</th>`).join("")}<th></th></tr>` + present.map(
+      (p) => `<tr><td><input data-pf="name" data-pid="${K(p.id)}" value="${K(p.name)}"></td><td><input type="number" min="0" style="width:60px" data-pf="fam" data-pid="${K(p.id)}" value="${p.family || 0}"></td>${active.map((m) => `<td><input type="checkbox" data-pe="${K(m.k)}" data-pid="${K(p.id)}"${p.elig.includes(m.k) ? " checked" : ""}></td>`).join("")}<td><button data-prm="${K(p.id)}">${state.cf === `p:${p.id}` ? "Confirm remove" : "Remove"}</button></td></tr>`
+    ).join("") + `</table></div><div class="l"><input id="pn" placeholder="New person\u2019s name"><input id="pf" type="number" min="0" placeholder="Family" style="width:84px"><button class="p" id="padd">Add person</button></div>${removed.length ? '<div class="mut">Removed people</div>' + removed.map((p) => `<div class="l">${esc(p.name)}<button data-prs="${K(p.id)}">Restore</button></div>`).join("") : ""}</div>`;
+  }
+  function changeLog() {
+    return `<div class="card"><h3>Change log</h3>${state.log.map(
+      (h) => `<div class="l"><span class="mut">${new Date(h.ts).toLocaleString("en-ZA")}</span> ${esc(state.names[h.by] || "Someone")}: ${esc(h.msg)}</div>`
+    ).join("") || '<span class="mut">No changes yet.</span>'}</div>`;
+  }
+
+  // src/views/away.ts
+  function awayTab() {
+    const people = peopleByName().filter((p) => p.elig.length && !p.gone);
+    const entries = Object.entries(state.away).sort((a, b) => a[1].from < b[1].from ? -1 : 1);
+    return `<div class="card"><h3>Flag unavailability</h3><div class="l"><select id="ap">${people.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>
+  <input type="date" id="af"><span>to</span><input type="date" id="at"><input id="an" placeholder="Note (optional)"><button class="p" id="aadd">Add</button></div>
+  <div class="mut">Leave \u201Cto\u201D blank for a single date. Rosters already generated are flagged in red; use \u201CRegenerate this Sunday\u201D to refill.</div></div>
+  <div class="card"><h3>Away</h3>${entries.map(
+      ([k, a]) => `<div class="l">${esc(state.people[a.person]?.name || a.person)} \xB7 ${a.from}${a.to !== a.from ? ` to ${a.to}` : ""} ${a.note ? `\xB7 ${esc(a.note)}` : ""}<button data-del="${esc(k)}">Remove</button></div>`
+    ).join("") || '<span class="mut">Nobody flagged.</span>'}</div>`;
+  }
+
+  // src/help.ts
+  var HELP = {
+    s: {
+      intro: "Who is serving this coming Sunday. Use this page to check the list, share it (Export PDF) or make last-minute changes.",
+      points: [
+        "Shows the next Sunday only (a Sunday that is today still counts). It moves on to the following Sunday on the Monday.",
+        "Verse: type the verse for the week in the Verse box and press Save verse. It shows at the top of the list and the PDF, and stays with that Sunday permanently.",
+        "Export PDF saves a one-page copy of the list, with the verse at the top and that Sunday\u2019s note at the bottom.",
+        "To change someone, press Edit. Tap \u2715 beside a name to remove them, or choose a name under \u201CAdd\u2026\u201D and press Add. Extra people beyond the usual number are fine. To replace someone, remove them and add the new person.",
+        "Notes: type in the note box and press Save note. Each Sunday has its own note, so next week starts blank and past notes are kept.",
+        "If it says nothing has been generated yet, open the Roster tab and press Generate."
+      ]
+    },
+    r: {
+      intro: "Plan and adjust the roster for every Sunday. Changes here show up on the Serving tab.",
+      points: [
+        "Generate fills in the next 3 months of Sundays using the rotation. It never changes a Sunday that already exists.",
+        "To move someone: tap their name, then tap the ministry box you want (dragging works too). Tap or drop on \u201CNot serving\u201D to take them off. Adding extra people to a ministry is allowed.",
+        "Red names are conflicts: away that day, not marked eligible for that ministry, serving twice, or clashing with an exclusive role (Security/Lock Up and Creche can\u2019t be combined with anything else). \u201CNeeds N more\u201D means a slot is short.",
+        "Regenerate this Sunday rebuilds that one Sunday from scratch (it asks you to confirm). Your manual changes to that Sunday are lost, but its note is kept.",
+        "Show past reveals earlier Sundays. Export CSV downloads the whole roster for Excel."
+      ]
+    },
+    a: {
+      intro: "Tell the roster when someone is not available, so they are skipped when Sundays are generated.",
+      points: [
+        "Pick the person, choose the first date and (for several days) the last date. Leave \u201Cto\u201D empty for a single day, add an optional note, then press Add.",
+        "Sundays that already exist will show the person in red. Go to the Roster tab and use Regenerate this Sunday to refill it, or move people by hand.",
+        "Press Remove next to an entry if plans change."
+      ]
+    },
+    v: {
+      intro: "A record of who has served, on what and when, so you can see who has been serving many Sundays in a row. It is for insight only; nothing here changes the roster.",
+      points: [
+        "Each row is a person and each column a Sunday. Letters show the ministry served (key above the grid), hatched cells are away, and dimmed columns are planned future Sundays.",
+        "Run = consecutive Sundays served up to the upcoming Sunday. Longest = longest run so far. Total = Sundays served. People are sorted by current run.",
+        "The optional highlight box marks anyone whose run reaches the number you enter (0 turns it off).",
+        "Click a person\u2019s name to open a detailed view below the table. Click the name again to close it.",
+        "The \u201CNeeds attention\u201D row flags upcoming Sundays with a problem: a ministry short of people, someone away, not eligible, double-booked, or a removed person still assigned. Hover a flag to see the reasons. Click it to open that Sunday below the table, see exactly what is wrong and fix it there by removing or adding people. Past Sundays are not flagged.",
+        "The verses and notes section lets you read or edit the verse and note for any Sunday, and lists all of them."
+      ]
+    },
+    h: {
+      intro: "Manage the people and ministries, and see a log of every change. Use this tab to add, change or remove people and ministries and to set who can serve in what.",
+      points: [
+        "People: change a name or family number by typing and pressing Enter or clicking away. Tick or untick a ministry to say whether that person can serve in it. New people start with nothing ticked.",
+        "Add a person with the form under the people table. Remove takes someone off the lists and out of future automatic rosters. Their past service stays in the Service record, and you can bring them back from \u201CRemoved people\u201D. If a removed person is still on a future Sunday, that Sunday shows them in red until you move them.",
+        "Ministries: rename one, change how many people it needs (used only when generating automatically) or mark it exclusive (anyone serving in it can\u2019t serve in anything else that day). Remove stops a ministry being used for new Sundays. Sundays that already exist keep showing it, with the people assigned, exactly as generated. Restore brings it back.",
+        "Each Sunday keeps a locked copy of the ministry names, headcounts, exclusive settings, people names and eligibility from when it was generated, so changes here never alter existing Sundays. A new ministry only appears on an existing Sunday if you press Regenerate on it. Sundays generated before this feature existed are locked automatically the first time the page is opened by someone who can edit.",
+        "Change log (at the bottom): every change, newest first, with who made it."
+      ]
+    }
+  };
+
+  // src/views/shared.ts
+  var TEXTAREA_STYLE = "width:100%;box-sizing:border-box;font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:6px 10px";
+  function verseBox(date) {
+    const verse = state.drafts[`v${date}`] ?? state.ros[date]?.verse ?? "";
+    return `<div class="noprint"><textarea data-verse="${date}" rows="2" style="${TEXTAREA_STYLE}" placeholder="Verse for this Sunday, e.g. reference and text\u2026">${esc(verse)}</textarea><div class="l"><button data-vsave="${date}">Save verse</button></div></div>`;
+  }
+  function noteBox(date) {
+    const note = state.drafts[date] ?? state.ros[date]?.note ?? "";
+    return `<div class="noprint"><textarea data-note="${date}" rows="3" style="${TEXTAREA_STYLE}" placeholder="Notes for this Sunday\u2026">${esc(note)}</textarea><div class="l"><button data-nsave="${date}">Save note</button></div></div>`;
+  }
+  function helpBox(tab) {
+    const help = HELP[tab];
+    return `<div class="card noprint"><b>About this tab</b><div class="mut">${help.intro}</div><ul class="mut" style="margin:6px 0 0;padding-left:20px">${help.points.map((x) => `<li>${x}</li>`).join("")}</ul></div>`;
+  }
+
+  // src/views/record.ts
+  function flagSummary(dates) {
+    const flagged = flaggedDates(dates, todayIso(), (d) => issuesOn(d));
+    return flagged.length ? `<div class="warn" style="margin-top:6px">\u2691 ${flagged.length} upcoming Sunday${flagged.length === 1 ? "" : "s"} need${flagged.length === 1 ? "s" : ""} attention: ${flagged.map((d) => `<button data-fl="${d}">${formatShortDate(d)}</button>`).join(" ")}</div>` : '<div class="mut" style="margin-top:6px">No upcoming Sundays have problems.</div>';
+  }
+  function flagRow(dates) {
+    return `<tr><td>\u2691 Needs attention</td><td colspan="4" class="mut" style="text-align:left">click a flag to fix it</td>` + dates.map((d) => {
+      if (d < todayIso()) return "<td></td>";
+      const f = flagsOn(d);
+      if (!f.n) return "<td></td>";
+      const tip = [...f.sum, ...Object.entries(f.out).map(([id, l]) => `${nameOn(d, id)}: ${l.join("; ")}`)].join(" | ");
+      return `<td data-fl="${d}" class="fl" style="cursor:pointer" title="${esc(tip)}">\u2691 ${f.n}</td>`;
+    }).join("") + "</tr>";
+  }
+  function flagDetail() {
+    const d = state.fd;
+    const r = d ? state.ros[d] : void 0;
+    if (!d || !r) return "";
+    const { out, sum } = issuesOn(d);
+    const on = {};
+    for (const m of ministriesOn(d)) for (const i of r.s[m.k] || []) on[i] = m.l;
+    const lines = [
+      ...sum.map((s) => `<li>${esc(s)}</li>`),
+      ...Object.entries(out).map(([id, l]) => `<li><b>${esc(nameOn(d, id))}</b>: ${esc(l.join("; "))}</li>`)
+    ];
+    return `<div class="card"><h3>${formatDate(d)} <button data-fl="${d}">Close</button></h3>` + (lines.length ? `<ul class="warn" style="margin:0 0 8px;padding-left:20px">${lines.join("")}</ul>` : '<div class="mut">No issues on this Sunday.</div>') + ministriesOn(d).map((m) => {
+      const ids = r.s[m.k] || [];
+      const opts = peopleByName().filter((p) => !p.gone && p.elig.includes(m.k) && !ids.includes(p.id));
+      return `<div class="row"><b>${esc(m.l)}<div class="mut">${m.n} needed</div></b><div>${ids.map(
+        (i) => `<span${out[i] ? ' class="warn"' : ""}>${esc(nameOn(d, i))}<span class="x" data-srm="${m.k}|${esc(i)}" data-d="${d}" title="Remove">\u2715</span></span>`
+      ).join(", ") || '<span class="mut">Unfilled</span>'}<div class="l"><select id="sa-${m.k}"><option value="">Add\u2026</option>${opts.map(
+        (p) => `<option value="${esc(p.id)}">${esc(p.name)}${awayOn(p.id, d) ? " (away)" : on[p.id] ? ` (also: ${esc(on[p.id])})` : ""}</option>`
+      ).join("")}</select><button data-sadd="${m.k}" data-d="${d}">Add</button></div></div></div>`;
+    }).join("") + `<div class="l"><button data-regen="${d}">${state.cf === d ? "Confirm: replace this Sunday" : "Regenerate this Sunday"}</button></div></div>`;
+  }
+  function recordTab() {
+    const M = allMinistriesNow;
+    const ds = Object.keys(state.ros).sort();
+    const nx = ds.find((x) => x >= todayIso()) || "";
+    const up = ds.filter((d) => !nx || d <= nx);
+    const sd = formatShortDate;
+    if (!ds.length) return '<div class="card"><p class="mut">No Sundays generated yet.</p></div>';
+    const ab = {};
+    for (const m of M()) ab[m.k] = m.l.split(/[ \/&]+/).map((w) => w.charAt(0)).join("").slice(0, 2);
+    const rows = peopleList().map((p) => {
+      const cells = ds.map((d) => M().filter((m) => (rosterAt(d).s[m.k] || []).includes(p.id)).map((m) => m.k));
+      let run = 0;
+      let best = 0;
+      let tot = 0;
+      let last = "";
+      up.forEach((d, i) => {
+        if ((cells[i] ?? []).length) {
+          run++;
+          tot++;
+          last = d;
+          best = Math.max(best, run);
+        } else run = 0;
+      });
+      return { p, cells, run, best, tot, last };
+    }).filter((x) => x.p.elig.length && !x.p.gone || x.tot || x.cells.some((c) => c.length)).sort((a, b) => b.run - a.run || a.p.name.localeCompare(b.p.name));
+    const x0 = rows.find((r) => r.p.id === state.pick);
+    const cnt = {};
+    let det = "";
+    if (x0) {
+      x0.cells.forEach((c, i) => {
+        const d = ds[i];
+        if (d !== void 0 && up.includes(d)) for (const k of c) cnt[k] = (cnt[k] || 0) + 1;
+      });
+      det = `<div class="card"><h3>${esc(x0.p.name)}</h3><div class="mut">Run ${x0.run} \xB7 Longest ${x0.best} \xB7 Total ${x0.tot} \xB7 Last served ${x0.last ? formatDate(x0.last) : "never"}</div>
+  <div class="l">${M().map((m) => `<span style="border:1px solid var(--bd);border-radius:14px;padding:3px 10px">${esc(m.l)}: ${cnt[m.k] || 0}</span>`).join("")}</div>
+  <div style="overflow-x:auto"><table class="rec"><tr><th>Sunday</th><th>Serving</th><th>Note</th></tr>${ds.slice().reverse().map((d) => {
+        const c = x0.cells[ds.indexOf(d)] ?? [];
+        return `<tr class="${up.includes(d) ? "" : "fu"}"><td>${formatDate(d)}</td><td>${c.length ? c.map((k) => esc(M().find((m) => m.k === k)?.l)).join(" + ") : awayOn(x0.p.id, d) ? "Away" : "-"}</td><td style="text-align:left;white-space:pre-wrap">${esc(rosterAt(d).note || "")}</td></tr>`;
+      }).join("")}</table></div></div>`;
+    }
+    const ns = state.nd && ds.includes(state.nd) ? state.nd : nx || (ds[ds.length - 1] ?? "");
+    const withNotes = ds.filter((d) => rosterAt(d).note || rosterAt(d).verse);
+    const nt = `<div class="card"><h3>Sunday verses and notes</h3><div class="mut">Each verse and note belongs to one Sunday and is kept permanently. Choose a Sunday to read or edit them.</div><div class="l"><select id="nsel">${ds.map((d) => `<option value="${d}"${d === ns ? " selected" : ""}>${formatDate(d)}</option>`).join("")}</select></div><b>Verse</b>${verseBox(ns)}<b>Notes</b>${noteBox(ns)}${withNotes.length ? '<div class="mut">All verses and notes</div>' + withNotes.map(
+      (d) => `<div class="l"><b>${formatDate(d)}</b><span style="white-space:pre-wrap">${rosterAt(d).verse ? `<i>${esc(rosterAt(d).verse)}</i> ` : ""}${esc(rosterAt(d).note || "")}</span></div>`
+    ).join("") : ""}</div>`;
+    const thr = state.thr;
+    return `<div class="card"><h3>Service record</h3><div class="l">Optional highlight: runs of <input id="thr" type="number" min="0" max="12" value="${thr}" style="width:64px"> or more Sundays (0 = off)</div>
+ <div class="mut">Run = consecutive Sundays served up to ${nx ? formatDate(nx) : "the last Sunday"} (an away Sunday or a Sunday off resets it). Later columns are planned and dimmed. Ministries: ${M().map((m) => `${ab[m.k]} = ${esc(m.l)}`).join(", ")}. Sorted by current run.</div>${flagSummary(ds)}</div>
+ <div style="overflow-x:auto"><table class="rec"><tr><th>Name</th><th>Run</th><th>Longest</th><th>Total</th><th>Last served</th>${ds.map((d) => `<th class="${up.includes(d) ? "" : "fu"}">${sd(d)}</th>`).join("")}</tr>` + flagRow(ds) + rows.map(
+      (x) => `<tr><td data-pick="${esc(x.p.id)}" style="cursor:pointer;${x.p.id === state.pick ? "font-weight:700;text-decoration:underline" : ""}" title="Click for details">${thr > 0 && x.run >= thr ? '<span class="fl">\u2691</span> ' : ""}${esc(x.p.name)}</td><td class="${thr > 0 && x.run >= thr ? "fl" : ""}">${x.run}</td><td>${x.best}</td><td>${x.tot}</td><td>${x.last ? sd(x.last) : "-"}</td>${x.cells.map((c, i) => {
+        const d = ds[i] ?? "";
+        return `<td class="${c.length ? "hit" : ""}${awayOn(x.p.id, d) ? " aw" : ""}${up.includes(d) ? "" : " fu"}">${c.map((k) => ab[k]).join("+")}</td>`;
+      }).join("")}</tr>`
+    ).join("") + "</table></div>" + flagDetail() + det + nt;
+  }
+
+  // src/views/roster.ts
+  function card(d) {
+    const r = state.ros[d];
+    if (!r) return `<section class="card"><h3>${formatDate(d)}</h3><p class="mut">Not generated yet.</p></section>`;
+    const { out, sum } = issuesOn(d);
+    const placed = new Set(Object.values(r.s).flat());
+    const sel = state.sel;
+    const chip = (id, k) => {
+      const bad = out[id];
+      const on = sel && sel.id === id && sel.d === d && sel.k === k;
+      return `<span class="chip${bad ? " bad" : ""}${on ? " on" : ""}" draggable="true" data-id="${esc(id)}" data-d="${d}" data-k="${k}" title="${esc((bad || []).join("; "))}">${esc(nameOn(d, id))}</span>`;
+    };
+    const bench = peopleByName().filter((p) => !p.gone && !placed.has(p.id));
+    return `<section class="card"><h3>${formatDate(d)} ${r.manual ? '<span class="mut">\xB7 edited</span>' : ""}</h3>
+ ${sum.length ? `<div class="warn">\u26A0 ${esc(sum.join(" \xB7 "))}</div>` : ""}
+ ${ministriesOn(d).map(
+      (m) => `<div class="row"><b>${esc(m.l)}${m.x ? ' <span class="mut">(exclusive)</span>' : ""}<div class="mut">${m.n} needed</div></b><div class="drop" data-drop="${m.k}" data-d="${d}">${(r.s[m.k] || []).map((id) => chip(id, m.k)).join("")}</div></div>`
+    ).join("")}
+ <div class="row bench"><b>Not serving</b><div class="drop" data-drop="" data-d="${d}">${bench.map(
+      (p) => `<span class="chip${awayOn(p.id, d) ? " aw" : ""}${sel && sel.id === p.id && sel.d === d && !sel.k ? " on" : ""}" draggable="true" data-id="${esc(p.id)}" data-d="${d}" data-k="" title="${awayOn(p.id, d) ? "Away" : ""}">${esc(p.name)}</span>`
+    ).join("")}</div></div>
+ <div class="l noprint"><button data-regen="${d}">${state.cf === d ? "Confirm: replace this Sunday" : "Regenerate this Sunday"}</button></div></section>`;
+  }
+  function rosterTab() {
+    const dates = windowDates();
+    const miss = dates.filter((d) => !state.ros[d]).length;
+    const cut = addDays(todayIso(), -7);
+    const shown = [.../* @__PURE__ */ new Set([...dates, ...Object.keys(state.ros)])].sort().filter((d) => state.past || d >= cut);
+    return `<div class="l noprint"><button class="p" id="gen">Generate ${miss} missing Sunday${miss === 1 ? "" : "s"}</button><button id="past">${state.past ? "Hide" : "Show"} past</button><button id="csv">Export CSV</button><span class="mut">Window: 3 rolling months. Existing Sundays are never overwritten.</span></div>` + shown.map((d) => card(d)).join("");
+  }
+
+  // src/views/serving.ts
+  function servingTab() {
+    const d = Object.keys(state.ros).sort().find((x) => x >= todayIso());
+    const r = d ? state.ros[d] : void 0;
+    if (!d || !r) return '<div class="card"><p class="mut">No upcoming Sunday has been generated yet.</p></div>';
+    const { out, sum } = issuesOn(d);
+    const on = {};
+    const ministries = ministriesOn(d);
+    for (const m of ministries) for (const i of r.s[m.k] || []) on[i] = m.l;
+    const sedit = state.sedit;
+    return `<div class="l noprint"><button class="p" id="pdf" data-d="${d}">Export PDF</button><button id="sedit">${sedit ? "Done editing" : "Edit"}</button></div>
+ <section class="card sv"><h3>${formatDate(d)}</h3>${r.verse ? `<p style="white-space:pre-wrap;font-style:italic">${esc(r.verse)}</p>` : ""}${sedit && sum.length ? `<div class="warn noprint">\u26A0 ${esc(sum.join(" \xB7 "))}</div>` : ""}` + ministries.map((m) => {
+      const ids = r.s[m.k] || [];
+      const opts = peopleByName().filter((p) => !p.gone && p.elig.includes(m.k) && !ids.includes(p.id));
+      return `<div class="row"><b>${esc(m.l)}</b><div>${ids.map(
+        (i) => `<span${out[i] && sedit ? ' class="warn"' : ""}>${esc(nameOn(d, i))}${sedit ? `<span class="x" data-srm="${m.k}|${esc(i)}" data-d="${d}" title="Remove">\u2715</span>` : ""}</span>`
+      ).join(", ") || '<span class="mut">Unfilled</span>'}
+  ${sedit ? `<div class="l noprint"><select id="sa-${m.k}"><option value="">Add\u2026</option>${opts.map(
+        (p) => `<option value="${esc(p.id)}">${esc(p.name)}${awayOn(p.id, d) ? " (away)" : on[p.id] ? ` (also: ${esc(on[p.id])})` : ""}</option>`
+      ).join("")}</select><button data-sadd="${m.k}" data-d="${d}">Add</button></div>` : ""}</div></div>`;
+    }).join("") + '</section><div class="card noprint"><b>Verse for this Sunday</b><div class="mut">Shown at the top of the PDF.</div>' + verseBox(d) + '</div><div class="card noprint"><b>Notes for this Sunday</b>' + noteBox(d) + "</div>";
+  }
+
+  // src/render.ts
+  function render() {
+    const view = $("#v");
+    if (!view || !state.ready) return;
+    if (!state.cfg) {
+      view.innerHTML = '<p class="mut">No configuration found yet.</p>';
+      return;
+    }
+    let html;
+    switch (state.tab) {
+      case "r":
+        html = rosterTab();
+        break;
+      case "s":
+        html = servingTab();
+        break;
+      case "v":
+        html = recordTab();
+        break;
+      case "a":
+        html = awayTab();
+        break;
+      case "h":
+        html = adminTab() + changeLog();
+        break;
+    }
+    view.innerHTML = helpBox(state.tab) + html;
+  }
+
+  // src/parse.ts
+  var isRecord = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+  var str = (v, fallback = "") => typeof v === "string" ? v : fallback;
+  var num = (v, fallback = 0) => typeof v === "number" && Number.isFinite(v) ? v : fallback;
+  var strings = (v) => Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  function parseMinistry(v) {
+    if (!isRecord(v)) return null;
+    const k = str(v["k"]);
+    if (!k) return null;
+    const ministry = { k, l: str(v["l"], k), n: num(v["n"]), x: v["x"] ? 1 : 0 };
+    if (v["gone"]) ministry.gone = true;
+    return ministry;
+  }
+  function parseMinistries(v) {
+    if (!Array.isArray(v)) return [];
+    return v.map(parseMinistry).filter((m) => m !== null);
+  }
+  function parseConfig(data) {
+    if (!data) return null;
+    return { start: str(data["start"]), ministries: parseMinistries(data["ministries"]) };
+  }
+  function parsePerson(id, data) {
+    const person = {
+      id,
+      name: str(data["name"], id),
+      family: num(data["family"]),
+      elig: strings(data["elig"])
+    };
+    if (data["gone"]) person.gone = true;
+    return person;
+  }
+  function parseAssignments(v) {
+    if (!isRecord(v)) return null;
+    const out = {};
+    for (const [k, ids] of Object.entries(v)) out[k] = strings(ids);
+    return out;
+  }
+  function parseMinistrySnapshot(v) {
+    const m = parseMinistry(v);
+    return m ? { k: m.k, l: m.l, n: m.n, x: m.x } : null;
+  }
+  function parseMeta(v) {
+    if (!isRecord(v) || !Array.isArray(v["m"]) || !isRecord(v["p"])) return void 0;
+    const people = {};
+    for (const [id, p] of Object.entries(v["p"])) {
+      if (isRecord(p)) people[id] = { n: str(p["n"], id), e: strings(p["e"]) };
+    }
+    return {
+      m: v["m"].map(parseMinistrySnapshot).filter((m) => m !== null),
+      p: people
+    };
+  }
+  function parseRoster(docId, data) {
+    if (!data) return null;
+    const s = parseAssignments(data["s"]);
+    if (!s) return null;
+    const roster = { date: str(data["date"], docId), s };
+    if (data["gen"]) roster.gen = true;
+    if (data["manual"]) roster.manual = true;
+    if (typeof data["note"] === "string") roster.note = data["note"];
+    if (typeof data["verse"] === "string") roster.verse = data["verse"];
+    const meta = parseMeta(data["meta"]);
+    if (meta) roster.meta = meta;
+    return roster;
+  }
+  function parseAway(data) {
+    return { person: str(data["person"]), from: str(data["from"]), to: str(data["to"]), note: str(data["note"]) };
+  }
+  function parseHistory(data) {
+    return { ts: str(data["ts"]), by: str(data["by"]), msg: str(data["msg"]) };
+  }
+
+  // src/store.ts
+  var toDoc = (value) => ({ ...value });
+  var text = (v) => typeof v === "string" ? v : "";
+  function requireDb() {
+    if (!state.db) throw new Error("The database is not connected");
+    return state.db;
+  }
+  function logit(message) {
+    void requireDb().collection("history").add({ ts: (/* @__PURE__ */ new Date()).toISOString(), by: state.me, msg: message }).catch(() => {
+    });
+  }
+  async function withLock(ref, change) {
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const lease = await ref.acquire({ holder: tabId, ttlMs: 3e3 });
+      if (lease.acquired) return change(ref);
+      await new Promise((resolve) => setTimeout(resolve, 250 + Math.random() * 300));
+    }
+    throw new Error("busy");
+  }
+  async function createIfAbsent(date, roster) {
+    const ref = requireDb().doc(`rosters/${date}`);
+    let lease;
+    try {
+      lease = await ref.acquire({ holder: tabId, ttlMs: 15e3 });
+    } catch {
+      return false;
+    }
+    if (!lease.acquired) return false;
+    const current = await ref.get();
+    if (current.exists && current.data()?.["s"]) return false;
+    await ref.set(toDoc(roster));
+    return true;
+  }
+  async function genMissing() {
+    const missing = windowDates().filter((d) => !state.ros[d]);
+    const prior = Object.values(state.ros);
+    const made = [];
+    for (const date of missing) {
+      const doc = {
+        date,
+        s: generateOn(date, prior.filter((x) => x.date < date).sort(byDate)),
+        gen: true,
+        manual: false,
+        meta: snapshotNow()
+      };
+      if (await createIfAbsent(date, doc)) {
+        prior.push(doc);
+        made.push(date);
+      }
+    }
+    const first = made[0];
+    const last = made[made.length - 1];
+    if (first && last) logit(`Generated ${made.length} Sunday(s): ${formatDate(first)} to ${formatDate(last)}`);
+  }
+  async function regen(date) {
+    const s = generateOn(date, Object.values(state.ros).filter((x) => x.date < date).sort(byDate));
+    await withLock(requireDb().doc(`rosters/${date}`), async (ref) => {
+      const current = await ref.get();
+      const c = current.exists ? current.data() ?? {} : {};
+      await ref.set({
+        date,
+        s,
+        gen: true,
+        manual: false,
+        note: text(c["note"]),
+        verse: text(c["verse"]),
+        meta: snapshotNow()
+      });
+      logit(`Regenerated ${formatDate(date)}`);
+    });
+  }
+  async function move(date, id, from, to) {
+    if (from === to) return;
+    state.sel = null;
+    await withLock(requireDb().doc(`rosters/${date}`), async (ref) => {
+      const current = await ref.get();
+      const roster = current.exists ? parseRoster(date, current.data()) : null;
+      if (!roster) return;
+      const fromList = from ? roster.s[from] ?? [] : [];
+      const toList = to ? roster.s[to] ?? [] : [];
+      const patch = {};
+      if (from && !fromList.includes(id)) {
+        flash("Someone else already changed this. The latest version is shown.");
+        return;
+      }
+      if (from) patch[from] = fromList.filter((x) => x !== id);
+      if (to && !toList.includes(id)) patch[to] = [...toList, id];
+      if (Object.keys(patch).length === 0) return;
+      const ministries = ministriesForSunday(state.cfg, roster);
+      const label = (k) => ministries.find((m) => m.k === k)?.l || "Not serving";
+      await ref.update({ s: patch, manual: true });
+      logit(`${formatDate(date)}: moved ${nameOn(date, id)} from ${label(from)} to ${label(to)}`);
+    });
+  }
+  async function saveVerse(date) {
+    const verse = state.drafts[`v${date}`] ?? state.ros[date]?.verse ?? "";
+    await withLock(requireDb().doc(`rosters/${date}`), (ref) => ref.update({ verse }));
+    delete state.drafts[`v${date}`];
+    logit(`Verse saved for ${formatDate(date)}${verse ? `: ${verse.slice(0, 200)}` : " (cleared)"}`);
+  }
+  async function saveNote(date) {
+    const note = state.drafts[date] ?? state.ros[date]?.note ?? "";
+    await withLock(requireDb().doc(`rosters/${date}`), (ref) => ref.update({ note }));
+    delete state.drafts[date];
+    logit(`Note saved for ${formatDate(date)}`);
+  }
+  async function saveMinistries(change) {
+    await withLock(requireDb().doc("config/main"), async (ref) => {
+      const current = await ref.get();
+      if (!current.exists) return;
+      const ministries = parseMinistries(current.data()?.["ministries"]);
+      change(ministries);
+      await ref.update({ ministries });
+    });
+  }
+  async function addMinistry(name, headcount, exclusive) {
+    await saveMinistries(
+      (ms) => ms.push({ k: `m${Date.now().toString(36)}`, l: name, n: Math.max(0, headcount), x: exclusive ? 1 : 0 })
+    );
+    logit(`Added ministry: ${name}`);
+  }
+  async function setMinistryRemoved(key, removed) {
+    await saveMinistries((ms) => {
+      const m = ms.find((x) => x.k === key);
+      if (m) m.gone = removed;
+    });
+    logit(`${removed ? "Removed" : "Restored"} ministry: ${allMinistriesNow().find((m) => m.k === key)?.l ?? key}`);
+  }
+  async function updateMinistry(key, field, value, checked) {
+    await saveMinistries((ms) => {
+      const m = ms.find((x) => x.k === key);
+      if (!m) return;
+      if (field === "l" && value.trim()) m.l = value.trim();
+      if (field === "n") m.n = Math.max(0, Number(value) || 0);
+      if (field === "x") m.x = checked ? 1 : 0;
+    });
+    logit(`Updated ministry settings: ${field === "l" ? value : allMinistriesNow().find((m) => m.k === key)?.l}`);
+  }
+  async function addPerson(name, family) {
+    let id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "person";
+    while (state.people[id]) id += "-2";
+    await requireDb().doc(`people/${id}`).set({ name, family, elig: [] });
+    logit(`Added person: ${name}`);
+  }
+  var personLabel = (id) => state.people[id]?.name ?? id;
+  async function setPersonRemoved(id, removed) {
+    await requireDb().doc(`people/${id}`).update({ gone: removed });
+    logit(`${removed ? "Removed" : "Restored"} person: ${personLabel(id)}`);
+  }
+  async function renamePerson(id, name) {
+    const before = personLabel(id);
+    await requireDb().doc(`people/${id}`).update({ name });
+    logit(`Renamed ${before} to ${name}`);
+  }
+  async function setFamily(id, family) {
+    await requireDb().doc(`people/${id}`).update({ family });
+    logit(`Family number for ${personLabel(id)} set to ${family}`);
+  }
+  async function setEligibility(id, key, eligible) {
+    await withLock(requireDb().doc(`people/${id}`), async (ref) => {
+      const current = await ref.get();
+      if (!current.exists) return;
+      const list = parsePerson(id, current.data() ?? {}).elig;
+      const elig = eligible ? list.includes(key) ? list : [...list, key] : list.filter((k) => k !== key);
+      await ref.update({ elig });
+    });
+    logit(
+      `${personLabel(id)}${eligible ? " can now serve in " : " can no longer serve in "}${allMinistriesNow().find((m) => m.k === key)?.l || key}`
+    );
+  }
+  async function addAway(person, from, to, note) {
+    await requireDb().collection("away").add({ person, from, to, note });
+    logit(`Away: ${personLabel(person)} ${from}${to !== from ? ` to ${to}` : ""}`);
+  }
+  async function removeAway(key) {
+    await requireDb().doc(`away/${key}`).delete();
+    logit("Removed an away entry");
+  }
+  var locking = false;
+  var lockStop = false;
+  async function autoLock() {
+    const { db, user, cfg, loaded } = state;
+    if (locking || lockStop || !(loaded.config && loaded.people && loaded.rosters) || !cfg || !db) return;
+    const todo = Object.keys(state.ros).filter((d) => !state.ros[d]?.meta);
+    if (todo.length === 0) return;
+    locking = true;
+    try {
+      if (user && await user.can("data.write") === false) {
+        lockStop = true;
+        return;
+      }
+      let locked = 0;
+      for (const date of todo) {
+        await withLock(db.doc(`rosters/${date}`), async (ref) => {
+          const current = await ref.get();
+          const roster = current.exists ? parseRoster(date, current.data()) : null;
+          if (roster && !roster.meta) {
+            await ref.update({ meta: snapshotNow(roster) });
+            locked++;
+          }
+        });
+      }
+      if (locked > 0) logit(`Locked ${locked} existing Sunday(s) to their current ministry and people settings`);
+    } catch (error) {
+      lockStop = true;
+      console.error(error);
+    } finally {
+      locking = false;
+    }
+  }
+  async function connect(onChange2) {
+    try {
+      const [db2, user, downloads] = await Promise.all([claude.use("db"), claude.use("user"), claude.use("downloads")]);
+      state.db = db2;
+      state.user = user;
+      state.downloads = downloads;
+    } catch {
+    }
+    const db = state.db;
+    if (!db) return false;
+    try {
+      state.me = await state.user?.id() ?? "";
+    } catch {
+    }
+    const redraw = () => {
+      state.ready = true;
+      onChange2();
+    };
+    db.doc("config/main").onSnapshot((snap) => {
+      state.cfg = snap.exists ? parseConfig(snap.data()) : null;
+      state.loaded.config = true;
+      redraw();
+      void autoLock();
+    });
+    db.collection("people").onSnapshot((snap) => {
+      state.people = {};
+      for (const doc of snap.docs) state.people[doc.id] = parsePerson(doc.id, doc.data() ?? {});
+      state.loaded.people = true;
+      void autoLock();
+      redraw();
+    });
+    db.collection("rosters").onSnapshot((snap) => {
+      state.ros = {};
+      for (const doc of snap.docs) {
+        const roster = parseRoster(doc.id, doc.data());
+        if (roster) state.ros[doc.id] = roster;
+      }
+      state.loaded.rosters = true;
+      void autoLock();
+      redraw();
+    });
+    db.collection("away").onSnapshot((snap) => {
+      state.away = {};
+      for (const doc of snap.docs) state.away[doc.id] = parseAway(doc.data() ?? {});
+      redraw();
+    });
+    db.collection("history").orderBy("ts", "desc").limit(200).onSnapshot((snap) => {
+      state.log = snap.docs.map((doc) => parseHistory(doc.data() ?? {}));
+      void resolveNames();
+      redraw();
+    });
+    return true;
+  }
+  async function resolveNames() {
+    const ids = [...new Set(state.log.map((h) => h.by).filter(Boolean))];
+    try {
+      const profiles = await state.user?.profiles(ids);
+      for (const id of ids) state.names[id] = profiles?.[id]?.name || "";
+    } catch {
+    }
+  }
+
+  // src/handlers.ts
+  var TABS = ["s", "r", "a", "v", "h"];
+  var isTab = (v) => TABS.includes(v);
+  function confirmed(key) {
+    if (state.cf === key) {
+      state.cf = null;
+      return true;
+    }
+    state.cf = key;
+    return false;
+  }
+  async function onClick(e) {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    if (t.closest("input,textarea,select,label")) return;
+    const chip = t.closest(".chip");
+    const drop = t.closest("[data-drop]");
+    const ds = t.dataset;
+    try {
+      if (ds["t"]) {
+        if (isTab(ds["t"])) state.tab = ds["t"];
+        document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("on", b === t));
+      } else if (t.id === "gen") await genMissing();
+      else if (t.id === "past") state.past = !state.past;
+      else if (t.id === "csv") exportCsv();
+      else if (ds["regen"]) {
+        if (confirmed(ds["regen"])) await regen(ds["regen"]);
+      } else if (t.id === "aadd") {
+        const from = valueOf("af");
+        const to = valueOf("at") || from;
+        if (from && to >= from) await addAway(valueOf("ap"), from, to, valueOf("an"));
+      } else if (ds["del"]) await removeAway(ds["del"]);
+      else if (t.id === "sedit") state.sedit = !state.sedit;
+      else if (t.id === "pdf") await exportPdf(ds["d"] ?? "");
+      else if (ds["srm"]) {
+        const [key = "", ...id] = ds["srm"].split("|");
+        await move(ds["d"] ?? "", id.join("|"), key, "");
+      } else if (ds["sadd"]) {
+        const id = valueOf(`sa-${ds["sadd"]}`);
+        if (id) await move(ds["d"] ?? "", id, "", ds["sadd"]);
+      } else if (ds["vsave"]) await saveVerse(ds["vsave"]);
+      else if (ds["nsave"]) await saveNote(ds["nsave"]);
+      else if (t.closest("[data-fl]")) {
+        const date = t.closest("[data-fl]")?.dataset["fl"] ?? "";
+        state.fd = state.fd === date ? "" : date;
+      } else if (t.closest("[data-pick]")) {
+        const id = t.closest("[data-pick]")?.dataset["pick"] ?? "";
+        state.pick = state.pick === id ? "" : id;
+      } else if (t.id === "padd") {
+        const name = valueOf("pn").trim();
+        if (name) await addPerson(name, Number(valueOf("pf")) || 0);
+      } else if (ds["prm"]) {
+        if (confirmed(`p:${ds["prm"]}`)) await setPersonRemoved(ds["prm"], true);
+      } else if (ds["prs"]) await setPersonRemoved(ds["prs"], false);
+      else if (t.id === "madd") {
+        const name = valueOf("mn").trim();
+        if (name) await addMinistry(name, Math.max(0, Number(valueOf("mc")) || 1), isChecked("mx"));
+      } else if (ds["mrm"]) {
+        if (confirmed(`m:${ds["mrm"]}`)) await setMinistryRemoved(ds["mrm"], true);
+      } else if (ds["mrs"]) await setMinistryRemoved(ds["mrs"], false);
+      else if (chip) {
+        const next = { id: chip.dataset["id"] ?? "", d: chip.dataset["d"] ?? "", k: chip.dataset["k"] ?? "" };
+        const cur = state.sel;
+        state.sel = cur && cur.id === next.id && cur.d === next.d && cur.k === next.k ? null : next;
+      } else if (drop && state.sel && state.sel.d === drop.dataset["d"]) {
+        await move(state.sel.d, state.sel.id, state.sel.k, drop.dataset["drop"] ?? "");
+      }
+    } catch (error) {
+      fail(error);
+    }
+    render();
+  }
+  async function onChange(e) {
+    const t = e.target;
+    if (!(t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement)) return;
+    const d = t.dataset;
+    if (t.id === "thr") {
+      state.thr = Math.max(0, Number(t.value) || 0);
+      render();
+    }
+    if (t.id === "nsel") {
+      state.nd = t.value;
+      render();
+    }
+    const checked = t instanceof HTMLInputElement && t.checked;
+    try {
+      const person = d["pid"] ?? "";
+      if (d["pf"] === "name" && t.value.trim()) await renamePerson(person, t.value.trim());
+      else if (d["pf"] === "fam") await setFamily(person, Number(t.value) || 0);
+      else if (d["pe"]) await setEligibility(person, d["pe"], checked);
+      else if (d["mf"] === "l" || d["mf"] === "n" || d["mf"] === "x") {
+        await updateMinistry(d["mk"] ?? "", d["mf"], t.value, checked);
+      }
+    } catch (error) {
+      fail(error);
+    }
+  }
+  function onInput(e) {
+    const t = e.target;
+    if (!(t instanceof HTMLTextAreaElement)) return;
+    if (t.dataset["note"]) state.drafts[t.dataset["note"]] = t.value;
+    if (t.dataset["verse"]) state.drafts[`v${t.dataset["verse"]}`] = t.value;
+  }
+  var chipOf = (e) => e.target instanceof Element ? e.target.closest(".chip") : null;
+  var dropOf = (e) => e.target instanceof Element ? e.target.closest("[data-drop]") : null;
+  function bindEvents() {
+    document.addEventListener("click", (e) => void onClick(e));
+    document.addEventListener("change", (e) => void onChange(e));
+    document.addEventListener("input", onInput);
+    document.addEventListener("dragstart", (e) => {
+      const c = chipOf(e);
+      if (c) state.sel = { id: c.dataset["id"] ?? "", d: c.dataset["d"] ?? "", k: c.dataset["k"] ?? "" };
+    });
+    document.addEventListener("dragover", (e) => {
+      if (dropOf(e)) e.preventDefault();
+    });
+    document.addEventListener("drop", (e) => {
+      const target = dropOf(e);
+      const sel = state.sel;
+      if (!target || !sel || sel.d !== target.dataset["d"]) return;
+      e.preventDefault();
+      move(sel.d, sel.id, sel.k, target.dataset["drop"] ?? "").catch(fail);
+    });
+  }
+
+  // src/main.ts
+  bindEvents();
+  void (async () => {
+    const connected = await connect(render);
+    if (!connected) {
+      const view = $("#v");
+      if (view) view.innerHTML = '<p class="mut">Sign in to claude.ai to use the roster.</p>';
+    }
+  })();
+})();
+</script>
+</body></html>

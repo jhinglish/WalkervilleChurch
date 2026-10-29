@@ -1,11 +1,28 @@
 # Changelog
 
-All notable changes to the Walkerville Sunday Roster are recorded here. Dates are `YYYY-MM-DD`. Add new entries under **Unreleased**, and move them under a dated heading when `index.html` is published to the claude.ai artifact.
+All notable changes to the Walkerville Sunday Roster are recorded here. Dates are `YYYY-MM-DD`. Add new entries under **Unreleased**, and move them under a dated heading when `dist/index.html` is published to the claude.ai artifact.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## 2026-10-29
+
+### Changed
+- The artifact now runs the TypeScript build (`dist/index.html`, built from `src/`) instead of the original single-file JavaScript. Behaviour is unchanged: before publishing, the original page and the build were run side by side in a headless browser against the same in-memory database across 63 steps (every tab, edit, database write, download and PDF call) and were identical apart from the fix below. The published artifact was read back and is byte-identical to `dist/index.html`.
+- `index.html` had been synced with the live artifact, which another session had updated: edits to rosters, eligibility and ministries take a short lease and re-read before writing, manual moves write only the ministries that changed, and save errors show a banner at the top of the page.
+- README: repository name `WalkervilleChurch`, the "Source of truth" section, local development commands, and no license (private project).
+
 ### Added
 - GitHub repository structure: `.gitignore`, `.gitattributes`, `.editorconfig`, `CHANGELOG.md`, `Artifact_Link`, and the seed workbook `Sunday_Ministries.xlsx` under version control (private repository only).
+- Strictly typed TypeScript source in `src/`: markup and CSS, data-model and runtime types, tested pure logic (`dates`, `model`, `issues`, `generate`), and the UI and database code (`parse`, `state`, `selectors`, `store`, `exports`, `handlers`, `render`, `main`, `views/`). `npm test` runs the unit tests, `npm run typecheck` the type-check, and `npm run build` bundles everything into `dist/index.html`.
+
+### Fixed
+- Locking older Sundays wrote its "Locked N existing Sunday(s)" change-log line twice. It is now written once.
+- Locking older Sundays checked write permission without awaiting `user.can()`, so the check never worked. It is now awaited.
+
+### Removed
+- The original root `index.html` and the temporary port checks (`scripts/equivalence.ts`, `scripts/ui-compare/`). They remain in Git history at the tag `pre-typescript`.
 
 ## 2026-10-27
 

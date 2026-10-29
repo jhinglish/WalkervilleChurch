@@ -64,8 +64,8 @@ pnpm-debug.log*
 .cache/
 *.tsbuildinfo
 coverage/
-# dist/ is intentionally NOT ignored: the single-file index.html that is
-# published to claude.ai may be committed from there. Revisit once a build exists.
+# dist/ is intentionally NOT ignored: the built single-file index.html that is
+# published to claude.ai is committed from there (see README, Source of truth).
 
 # --- Logs, scratch and backups ---
 *.log
