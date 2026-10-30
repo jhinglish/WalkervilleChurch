@@ -16,6 +16,8 @@ The source lives in a **private GitHub repository named `WalkervilleChurch`**. T
 - [Business rules](#business-rules)
 - [Running it](#running-it)
 - [Using each tab](#using-each-tab)
+- [Workflow: making a change](#workflow-making-a-change)
+- [Testing](#testing)
 - [Architecture](#architecture)
 - [Source control and deployment (GitHub)](#source-control-and-deployment-github)
 - [Data model](#data-model)
@@ -98,6 +100,62 @@ People who use the tool must be able to sign in to claude.ai (organisation membe
 
 **Admin**: edit ministries (name, people needed, exclusive) and people (name, family, eligibility). Removing hides a person or ministry from future generation and the pickers but keeps history; use Restore to bring it back. Changes never alter Sundays that already exist. A ministry added later only appears on an existing Sunday if that Sunday is regenerated. The change log is at the bottom.
 
+## Workflow: making a change
+
+Every change, from a typo to a new feature, follows the same path. Git holds the history, `src/` is where you edit, and Claude publishes to the artifact.
+
+| # | Step | How |
+|---|---|---|
+| 1 | Branch | `git switch -c feat/<name>` (or `fix/<name>`, `docs/<name>`). |
+| 2 | Edit `src/` | Never edit `dist/index.html` or the artifact by hand. Add or update a unit test next to any logic you change (`src/*.test.ts`). If people can see or click the change, add or update a browser test in `tests/e2e/`. |
+| 3 | Check everything | `npm run verify` runs the type-check, the unit tests, the build and the browser tests. Fix until it is green. The first time on a machine, run `npx playwright install chromium`. |
+| 4 | Update the docs | A line under **Unreleased** in `CHANGELOG.md`; the README if a rule, the data model or a tab's behaviour changed; the in-app help (`src/help.ts`) if the change alters what a tab does. |
+| 5 | Commit | `src/`, the tests and the rebuilt `dist/index.html` go in one commit. Run `git status` first and make sure no CSV, export or other member data is included. |
+| 6 | Merge | Merge to `main` (a pull request, or fast-forward if you are the only contributor) and push. |
+| 7 | Publish | In this project, ask Claude to publish `dist/index.html` to the existing artifact. Claude first checks that nobody changed the live artifact since the last publish, then publishes to the same link, reads the artifact back and confirms it is byte-identical to `dist/index.html`. |
+| 8 | Check it live | Open the artifact, check every tab loads with the real data, and try the thing you changed. The browser tests use a stand-in for the claude.ai runtime, so this step is the only check against the real one. |
+| 9 | Record the release | Move the **Unreleased** lines in `CHANGELOG.md` under a dated heading, commit, then `git tag vYYYY.MM.DD` and `git push --tags`. |
+
+Steps 1 to 6 and 9 happen on your machine. Step 7 is done by Claude in this claude.ai project. Step 8 is yours.
+
+**If something is wrong after publishing:** restore the last good build with `git checkout <previous-tag> -- dist/index.html` and ask Claude to publish that file to the existing artifact. The link stays the same and the live data is untouched. Fix the problem on a branch afterwards. Changes made through the app (people, rosters, away entries) are not rolled back by this.
+
+**Data is separate from code.** Publishing never changes the live database. To change people, ministries or rosters, use the app.
+
+## Testing
+
+Three layers, each catching a different kind of mistake. `npm run verify` runs all of them.
+
+| Layer | Command | Where | Catches |
+|---|---|---|---|
+| Type-check | `npm run typecheck` | `src/` and `tests/` | Wrong types, missing cases and unsafe lookups (strict mode, `noUncheckedIndexedAccess`) |
+| Unit tests (Vitest) | `npm test` | `src/*.test.ts` | Logic mistakes in dates, snapshots, issue detection and the generator |
+| Browser tests (Playwright) | `npm run test:e2e` | `tests/e2e/*.spec.ts` | Broken screens and clicks, database writes, exports, and the rules the tool must keep |
+
+### Browser tests
+
+They open the built page (`dist/index.html`) in headless Chromium, with an in-memory stand-in for the claude.ai runtime (`tests/e2e/support/fake-runtime.ts`) in place of the real database. The stand-in also pins the clock to 2026-10-28, so results do not depend on the day they are run. The 41 tests cover:
+
+- **Startup:** the sign-in message, an empty database, and every tab loading without errors.
+- **Generation:** the three-month window with every Sunday filled and locked; never overwriting a Sunday that exists (including one created by someone else mid-click); regeneration keeping the note and verse.
+- **Locked Sundays:** automatic locking happens once and changes nobody's assignment; a viewer who cannot write changes nothing; renaming or removing a ministry, renaming a person, or changing eligibility never alters an existing Sunday.
+- **Editing:** moving people; stale moves refused with a message; a held lease reported as "Someone else is editing"; Serving tab edits; verse and note saving; away entries; the Admin tab, including never overwriting an existing person who has the same name.
+- **Needs-attention flags:** shown only for upcoming Sundays, openable, fixable in place and closable; double-booking and exclusive clashes listed.
+- **Exports:** the PDF content and the CSV, including removed ministries.
+- **Security:** names and notes containing HTML are shown as text and never run.
+
+### Writing a browser test
+
+Use the helpers in `tests/e2e/support/app.ts`: `openApp(page, seed)` opens the page with some data; `app.doc(path)` reads a database document; `app.elsewhere(path, data)` simulates another person's write; `app.mute()` makes the page show stale data; `app.hold(path)` simulates someone else holding a lease. Seed data is in `tests/e2e/support/seeds.ts`. Assert on the database and on visible text, not on exact HTML. The app redraws the whole tab after every database update, which resets form fields, so wait with `await app.idle()` before filling a form that follows a write (`openApp` and `app.tab()` already wait). A test that clicks or fills straight after a write can pass on a slow machine and fail on a fast one.
+
+### Limits
+
+- The stand-in is not the real runtime. It cannot show problems that exist only in claude.ai (for example a change to the runtime contract), which is why step 8 of the workflow matters.
+- jsPDF is replaced by a stub, so the PDF's real layout is not checked, only what the app asks it to draw.
+- Layout and colours are not checked (there are no screenshots).
+- Two people editing at once is simulated (held leases, stale data), not run for real.
+- When the app changes a lot, break the code on purpose now and then and confirm a test fails. When these tests were written, four such checks (an overwrite on generation, names ignoring the snapshot, unescaped HTML, an undetected stale move) each failed as they should.
+
 ## Architecture
 
 The system has three parts, and each has one job:
@@ -132,7 +190,8 @@ Application design:
 | `dist/index.html` | The built single-file app that is published (generated by `npm run build`; commit it with the source change) | No |
 | `src/` | The application source: strictly typed TypeScript, the markup and CSS, and unit tests | No |
 | `scripts/build.mjs` | Bundles `src/` into `dist/index.html` | No |
-| `tsconfig.json`, `package.json` | Strict TypeScript settings and the npm scripts | No |
+| `tests/e2e/`, `playwright.config.ts` | Browser regression tests for the built page, with their stand-in for the claude.ai runtime and seed data | No |
+| `tsconfig.json`, `tsconfig.e2e.json`, `vitest.config.ts`, `package.json` | Strict TypeScript settings, test configuration and the npm scripts | No |
 | `README.md`, `CHANGELOG.md` | Documentation and release notes | No |
 | `Sunday_Ministries.xlsx` | Seed workbook: people, family numbers, eligibility | **Yes: member names** |
 | `Artifact_Link` | URL of the published artifact | Treat as private |
@@ -154,7 +213,7 @@ Git history is permanent. A file that is committed and later deleted can still b
 - Protect `main`: block force-pushes and branch deletion; require pull requests if more than one person contributes.
 - Turn on secret scanning and push protection.
 - Keep collaborators to the minimum needed, with the lowest role that works; require two-factor authentication on every account with access.
-- Dependabot alerts are worth enabling: `package.json` now has dev dependencies (TypeScript, Vitest, esbuild).
+- Dependabot alerts are worth enabling: `package.json` now has dev dependencies (TypeScript, Vitest, Playwright, esbuild).
 
 ### Source of truth
 
@@ -172,7 +231,7 @@ The move from the original JavaScript to TypeScript is finished and published:
 
 Rules for changes:
 
-- Edit `src/`, run `npm run check` (type-check, tests and build), and commit `src/` and the rebuilt `dist/index.html` together.
+- Follow the [workflow](#workflow-making-a-change): edit `src/`, run `npm run verify`, and commit `src/`, the tests and the rebuilt `dist/index.html` together.
 - Publish `dist/index.html` to the existing artifact (see [Deployment](#deployment-publishing-to-claudeai)).
 - The original single-file JavaScript version, and the browser and equivalence checks used to prove the port matched it, are in Git history at the tag `pre-typescript`.
 
@@ -184,22 +243,25 @@ The repository is named `WalkervilleChurch`. You need Node 20 or later.
 git clone git@github.com:jhinglish/WalkervilleChurch.git
 cd WalkervilleChurch
 npm install
-npm run check
+npx playwright install chromium   # once per machine, for the browser tests
+npm run verify
 ```
 
 | Command | What it does |
 |---|---|
-| `npm run typecheck` | Strict TypeScript check of `src/` (no files are emitted) |
+| `npm run typecheck` | Strict TypeScript check of `src/` and of the browser tests (no files are emitted) |
 | `npm test` | Runs the unit tests with Vitest |
 | `npm run test:watch` | Re-runs the tests as you edit |
 | `npm run build` | Bundles `src/` into the single page `dist/index.html` that claude.ai needs |
-| `npm run check` | Type-check, tests and build; run it before every commit |
+| `npm run check` | Type-check, unit tests and build |
+| `npm run test:e2e` | Builds, then runs the browser tests against `dist/index.html` |
+| `npm run verify` | Everything: `check` plus the browser tests. Run it before every commit and before publishing |
 
 ### Branching and commits
 
 - `main` always matches what is published (or is about to be). Do work on short-lived branches: `feat/<name>`, `fix/<name>`, `docs/<name>`, then merge to `main`.
 - Write commit messages in the imperative, optionally with a [Conventional Commits](https://www.conventionalcommits.org/) prefix, for example `fix: keep removed ministries visible on past Sundays`.
-- Each commit should leave `index.html` working. Do not mix a refactor and a feature in one commit.
+- Each commit should leave the app working (`npm run verify` passes). Do not mix a refactor and a feature in one commit.
 - Add a line under **Unreleased** in `CHANGELOG.md` for every user-visible change. When publishing, move those lines under a dated heading and tag the commit (for example `v2026.10.27`).
 - The workbook is binary, so Git cannot show a useful diff. Commit it on its own, with a message that says what changed (for example `data: add two new volunteers to workbook`).
 
@@ -207,7 +269,7 @@ npm run check
 
 Publishing is a manual step; there is no automatic pipeline yet.
 
-1. Merge the change to `main` and confirm `CHANGELOG.md` is up to date and `dist/index.html` was rebuilt (`npm run check`).
+1. Merge the change to `main` and confirm `CHANGELOG.md` is up to date and `npm run verify` passes, so `dist/index.html` is rebuilt and tested.
 2. In claude.ai, open this project and ask Claude to publish `dist/index.html` to the **existing** artifact at the link in `Artifact_Link`, so the link and the sharing settings stay the same. Do not create a new artifact for an update.
 3. If the capabilities (`db`, `user`, `downloads`) have changed, confirm they are still declared.
 4. Open the artifact, check each tab loads and the live data is intact, then tag the release.
@@ -321,7 +383,7 @@ Highest priority first.
 5. **Render pipeline.** Every snapshot re-renders everything and wipes unsaved form inputs (except verse/note drafts). `render()` has no error handling, so one malformed document can blank the UI.
 6. **Generation is manual and non-atomic.** The window only extends when someone presses Generate, and the sequential writes can leave a partial set (it is safe to press Generate again).
 7. **Snapshot gaps.** The Service record still shows ministry labels live; the lease used for generation is cooperative only; Sundays locked automatically capture the settings at the moment of first open.
-8. **Manual deployment, no CI.** Publishing to claude.ai is a manual step. Unit tests cover dates, model helpers, issue detection and generation (`npm test`), but nothing runs them automatically. Add a GitHub Actions workflow that runs `npm run check` on every push, plus HTML validation and secret scanning. The UI and database code have no automated tests. They were checked once, at the switch-over, by running the original page and the new build side by side in a headless browser against an in-memory stand-in for the runtime (all 63 states identical). That stand-in is in Git history at the tag `pre-typescript`, under `scripts/ui-compare/`, and is a good base for a Playwright smoke test.
+8. **Manual deployment, no CI.** Publishing to claude.ai is a manual step, and nothing runs the checks automatically. Add a GitHub Actions workflow that runs `npm run verify` on every push (it needs `npx playwright install --with-deps chromium`), plus secret scanning. The browser tests use a stand-in for the runtime, so they cannot catch problems that only exist in the real claude.ai runtime; see [Testing](#testing).
 9. **Page size.** The built page is about 54 KB because it is not minified. Set `minify: true` in `scripts/build.mjs` if size ever matters.
 10. **Minor:** family `0` is treated as a real family by the generator; dates use UTC rather than South African time; ministry abbreviations in the Service record can collide; the Away dropdown excludes people with no eligibility; away entries are never pruned.
 
@@ -363,8 +425,15 @@ WalkervilleChurch/
 │   └── test-fixtures.ts    # shared test data
 ├── scripts/
 │   └── build.mjs           # bundles src/ into dist/index.html
-├── tsconfig.json           # strict TypeScript settings (type-check only, no emit)
-├── package.json            # npm scripts and dev dependencies (TypeScript, Vitest, esbuild)
+├── tests/
+│   └── e2e/
+│       ├── *.spec.ts       # Playwright browser tests of the built page
+│       └── support/        # app helpers, the in-memory claude.ai runtime stand-in, and seed data
+├── playwright.config.ts    # browser test settings
+├── vitest.config.ts        # unit tests only (keeps Vitest out of tests/e2e)
+├── tsconfig.json           # strict TypeScript settings for src/ (type-check only, no emit)
+├── tsconfig.e2e.json       # the same strict settings for the browser tests
+├── package.json            # npm scripts and dev dependencies (TypeScript, Vitest, Playwright, esbuild)
 ├── README.md               # this file
 ├── CHANGELOG.md            # user-visible changes, newest first
 ├── Sunday_Ministries.xlsx  # seed workbook (member names: private repo only)

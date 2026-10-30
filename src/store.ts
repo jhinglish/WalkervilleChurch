@@ -175,11 +175,25 @@ export async function updateMinistry(key: MinistryKey, field: 'l' | 'n' | 'x', v
   logit(`Updated ministry settings: ${field === 'l' ? value : allMinistriesNow().find((m) => m.k === key)?.l}`);
 }
 
+/**
+ * Adds a person under an id made from their name, adding "-2" until the id is free. Free is
+ * checked in the database, not in the page's copy, which may not have seen someone else's new
+ * person yet; otherwise this would overwrite them.
+ */
 export async function addPerson(name: string, family: number): Promise<void> {
   let id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'person';
-  while (state.people[id]) id += '-2';
-  await requireDb().doc(`people/${id}`).set({ name, family, elig: [] });
-  logit(`Added person: ${name}`);
+  for (let attempt = 0; attempt < 50; attempt++, id += '-2') {
+    const created = await withLock(requireDb().doc(`people/${id}`), async (ref) => {
+      if ((await ref.get()).exists) return false;
+      await ref.set({ name, family, elig: [] });
+      return true;
+    });
+    if (created) {
+      logit(`Added person: ${name}`);
+      return;
+    }
+  }
+  throw new Error('Could not find a free id for this person');
 }
 
 const personLabel = (id: PersonId): string => state.people[id]?.name ?? id;

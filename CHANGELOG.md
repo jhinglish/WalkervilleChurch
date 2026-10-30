@@ -4,7 +4,15 @@ All notable changes to the Walkerville Sunday Roster are recorded here. Dates ar
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+- Browser regression tests (`tests/e2e/`, 41 tests, run with `npm run test:e2e`): they open the built page in headless Chromium against an in-memory stand-in for the claude.ai runtime and check startup, generation, locked Sundays, editing, needs-attention flags, exports and HTML escaping. `npm run verify` now runs the type-check, unit tests, build and browser tests together.
+- README: a step-by-step "Workflow: making a change" section (branch, edit `src/`, verify, document, commit, merge, publish, check live, tag, and how to roll back) and a "Testing" section.
+
+### Fixed
+- Adding a person checked the page's own copy of the people list for a free id. If the page had not yet seen someone else's new person with the same name, the new person overwrote them. It now checks the database and takes a short lease first, so a repeated name always gets its own id (`zoe`, `zoe-2`, ...). Found by a browser test that failed on a fast machine.
+
+### Changed
+- `npm run typecheck` also type-checks the browser tests (`tsconfig.e2e.json`). `vitest.config.ts` keeps Vitest to the unit tests in `src/`.
 
 ## 2026-10-29
 

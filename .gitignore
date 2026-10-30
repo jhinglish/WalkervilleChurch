@@ -64,6 +64,11 @@ pnpm-debug.log*
 .cache/
 *.tsbuildinfo
 coverage/
+# Playwright browser test output
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
 # dist/ is intentionally NOT ignored: the built single-file index.html that is
 # published to claude.ai is committed from there (see README, Source of truth).
 
