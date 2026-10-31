@@ -98,6 +98,11 @@ export class App {
     return this.page.evaluate(() => (window as unknown as { __fake: Fake }).__fake.writes);
   }
 
+  /** Every lease the page asked for, as [document path, requested lifetime in ms]. */
+  leases(): Promise<[string, number | undefined][]> {
+    return this.page.evaluate(() => (window as unknown as { __fake: Fake }).__fake.leases);
+  }
+
   pdfOps(): Promise<unknown[][]> {
     return this.page.evaluate(() => (window as unknown as { __pdfOps: unknown[][] }).__pdfOps);
   }

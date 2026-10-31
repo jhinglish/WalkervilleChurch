@@ -4,7 +4,11 @@ All notable changes to the Walkerville Sunday Roster are recorded here. Dates ar
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+- Generating Sundays held a 15-second lease on every new Sunday. A lease cannot be released, so another admin editing one of those Sundays within 15 seconds got "Someone else is editing right now". It now uses the same 3-second lease as every other write (`LEASE_MS` in `src/store.ts`).
+
+### Added
+- Browser test that generating takes only short leases. The in-memory runtime now records every lease requested (`leases` in `tests/e2e/support/fake-runtime.ts`, `app.leases()`).
 
 ## 2026-10-30
 

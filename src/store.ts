@@ -24,6 +24,9 @@ export function logit(message: string): void {
     .catch(() => {});
 }
 
+/** How long a lease lasts. Leases cannot be released, so they must be short. */
+const LEASE_MS = 3000;
+
 /**
  * Runs `change` while holding a short lease on a document, so two people editing
  * at once do not overwrite each other. Retries for a few seconds, then gives up
@@ -31,19 +34,23 @@ export function logit(message: string): void {
  */
 export async function withLock<T>(ref: DbDocumentReference, change: (ref: DbDocumentReference) => Promise<T>): Promise<T> {
   for (let attempt = 0; attempt < 10; attempt++) {
-    const lease = await ref.acquire({ holder: tabId, ttlMs: 3000 });
+    const lease = await ref.acquire({ holder: tabId, ttlMs: LEASE_MS });
     if (lease.acquired) return change(ref);
     await new Promise<void>((resolve) => setTimeout(resolve, 250 + Math.random() * 300));
   }
   throw new Error('busy');
 }
 
-/** Creates a Sunday only if nobody has created it since this page last looked. */
+/**
+ * Creates a Sunday only if nobody has created it since this page last looked. The lease is as
+ * short as in withLock: a lease cannot be released, so a long one would make everyone else's
+ * edits to the new Sunday fail with "busy" until it ran out.
+ */
 async function createIfAbsent(date: IsoDate, roster: Roster): Promise<boolean> {
   const ref = requireDb().doc(`rosters/${date}`);
   let lease: DbAcquireResult;
   try {
-    lease = await ref.acquire({ holder: tabId, ttlMs: 15000 });
+    lease = await ref.acquire({ holder: tabId, ttlMs: LEASE_MS });
   } catch {
     return false;
   }

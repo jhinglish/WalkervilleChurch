@@ -26,6 +26,8 @@ export interface FakeControls {
   write(path: string, data: Record<string, unknown>): void;
   saves: { filename: string; data: string }[];
   writes: [string, string][];
+  /** Every lease asked for, as [document path, requested lifetime in ms]. */
+  leases: [string, number | undefined][];
 }
 
 export function installFakeRuntime({ seed, canWrite }: FakeInit): void {
@@ -60,6 +62,7 @@ export function installFakeRuntime({ seed, canWrite }: FakeInit): void {
   let pending = false;
   const saves: FakeControls['saves'] = [];
   const writes: FakeControls['writes'] = [];
+  const leases: FakeControls['leases'] = [];
 
   const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
   const isObject = (v: unknown): v is Doc => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -132,7 +135,10 @@ export function installFakeRuntime({ seed, canWrite }: FakeInit): void {
         docs.delete(path);
         notify();
       },
-      acquire: async ({ holder }: { holder: string }) => (held.has(path) ? { acquired: false, holder: 'someone-else' } : { acquired: true, holder }),
+      acquire: async ({ holder, ttlMs }: { holder: string; ttlMs?: number }) => {
+        leases.push([path, ttlMs]);
+        return held.has(path) ? { acquired: false, holder: 'someone-else' } : { acquired: true, holder };
+      },
       onSnapshot(next: (s: ReturnType<typeof snapDoc>) => void) {
         const sub = { fire: () => next(snapDoc(path)) };
         subs.push(sub);
@@ -199,6 +205,7 @@ export function installFakeRuntime({ seed, canWrite }: FakeInit): void {
     },
     saves,
     writes,
+    leases,
   };
   w['__fake'] = controls;
 }

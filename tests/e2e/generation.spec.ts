@@ -33,6 +33,16 @@ test('never overwrites a Sunday that already exists', async ({ page }) => {
   expect((await app.doc('rosters/2027-01-10'))['s']).toEqual(before.b);
 });
 
+test('generating takes only short leases, so others can edit the new Sundays straight away', async ({ page }) => {
+  const app = await openApp(page, freshSeed());
+  await app.tab('Roster');
+  await page.locator('#gen').click();
+  await expect.poll(async () => (await app.paths('rosters')).length).toBe(13);
+  const rosterLeases = (await app.leases()).filter(([path]) => path.startsWith('rosters/'));
+  expect(rosterLeases.length).toBeGreaterThan(0);
+  for (const [, ttl] of rosterLeases) expect(ttl).toBeLessThanOrEqual(5000);
+});
+
 test('does not create a Sunday that someone else created in the meantime', async ({ page }) => {
   const app = await openApp(page, freshSeed());
   await app.tab('Roster');

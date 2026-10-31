@@ -687,9 +687,10 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     void requireDb().collection("history").add({ ts: (/* @__PURE__ */ new Date()).toISOString(), by: state.me, msg: message }).catch(() => {
     });
   }
+  var LEASE_MS = 3e3;
   async function withLock(ref, change) {
     for (let attempt = 0; attempt < 10; attempt++) {
-      const lease = await ref.acquire({ holder: tabId, ttlMs: 3e3 });
+      const lease = await ref.acquire({ holder: tabId, ttlMs: LEASE_MS });
       if (lease.acquired) return change(ref);
       await new Promise((resolve) => setTimeout(resolve, 250 + Math.random() * 300));
     }
@@ -699,7 +700,7 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     const ref = requireDb().doc(`rosters/${date}`);
     let lease;
     try {
-      lease = await ref.acquire({ holder: tabId, ttlMs: 15e3 });
+      lease = await ref.acquire({ holder: tabId, ttlMs: LEASE_MS });
     } catch {
       return false;
     }
