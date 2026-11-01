@@ -9,13 +9,13 @@ const TEXTAREA_STYLE =
 /** The verse box for a Sunday, showing unsaved text if there is any. */
 export function verseBox(date: IsoDate): string {
   const verse = state.drafts[`v${date}`] ?? state.ros[date]?.verse ?? '';
-  return `<div class="noprint"><textarea data-verse="${date}" rows="2" style="${TEXTAREA_STYLE}" placeholder="Verse for this Sunday, e.g. reference and text…">${esc(verse)}</textarea><div class="l"><button data-vsave="${date}">Save verse</button></div></div>`;
+  return `<div class="noprint" data-requires="editNotes"><textarea data-verse="${date}" rows="2" style="${TEXTAREA_STYLE}" placeholder="Verse for this Sunday, e.g. reference and text…">${esc(verse)}</textarea><div class="l"><button data-vsave="${date}">Save verse</button></div></div>`;
 }
 
 /** The notes box for a Sunday, showing unsaved text if there is any. */
 export function noteBox(date: IsoDate): string {
   const note = state.drafts[date] ?? state.ros[date]?.note ?? '';
-  return `<div class="noprint"><textarea data-note="${date}" rows="3" style="${TEXTAREA_STYLE}" placeholder="Notes for this Sunday…">${esc(note)}</textarea><div class="l"><button data-nsave="${date}">Save note</button></div></div>`;
+  return `<div class="noprint" data-requires="editNotes"><textarea data-note="${date}" rows="3" style="${TEXTAREA_STYLE}" placeholder="Notes for this Sunday…">${esc(note)}</textarea><div class="l"><button data-nsave="${date}">Save note</button></div></div>`;
 }
 
 /** The "About this tab" card shown at the top of every tab. */

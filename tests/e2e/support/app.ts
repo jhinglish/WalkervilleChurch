@@ -1,12 +1,13 @@
 import type { Locator, Page } from '@playwright/test';
+import { demoLogins } from '../../../src/test-fixtures';
 import { installFakeRuntime, installPdfStub } from './fake-runtime';
 import type { FakeControls, Seed } from './fake-runtime';
 
 /** The built page that every test opens. Run `npm run build` first (the `test:e2e` script does). */
 const APP_URL = new URL('../../../dist/index.html', import.meta.url).href;
 
-export type TabName = 'Serving' | 'Roster' | 'Away' | 'Service record' | 'Admin';
-export const TABS: readonly TabName[] = ['Serving', 'Roster', 'Away', 'Service record', 'Admin'];
+export type TabName = 'My schedule' | 'Swaps' | 'Serving' | 'Roster' | 'Away' | 'Service record' | 'Profile' | 'Admin';
+export const TABS: readonly TabName[] = ['My schedule', 'Swaps', 'Serving', 'Roster', 'Away', 'Service record', 'Profile', 'Admin'];
 
 type Fake = FakeControls;
 type Doc = Record<string, unknown>;
@@ -138,19 +139,47 @@ export class App {
   }
 }
 
-/** Opens the built page with the fake runtime and the given data. */
-export async function openApp(page: Page, seed: Seed, options: { canWrite?: boolean } = {}): Promise<App> {
+/** Which mock account to sign in as. */
+export type LoginRole = keyof typeof demoLogins;
+
+/** Types the credentials into the sign-in form and submits it, unless a saved session has already signed in. */
+async function signInThroughForm(page: Page, role: LoginRole): Promise<void> {
+  await page.locator('#login:not([hidden]), #app:not([hidden])').first().waitFor();
+  if (await page.locator('#login').isVisible()) {
+    await page.fill('#login-username', demoLogins[role].username);
+    await page.fill('#login-password', demoLogins[role].password);
+    await page.locator('#login-submit').click();
+  }
+}
+
+/**
+ * Opens the built page with the fake runtime and the given data, signed in as `options.as` (default: the admin).
+ * People land on My schedule; most tests are about the Serving tab, so this moves there unless `landing` is set.
+ */
+export async function openApp(
+  page: Page,
+  seed: Seed,
+  options: { canWrite?: boolean; as?: LoginRole; landing?: boolean } = {},
+): Promise<App> {
+  const app = await openLogin(page, seed, options);
+  await signInThroughForm(page, options.as ?? 'admin');
+  await page.locator('#v .card').first().waitFor();
+  await app.idle();
+  if (!options.landing) await app.tab('Serving');
+  return app;
+}
+
+/** Opens the built page with the fake runtime and stops at the sign-in screen. */
+export async function openLogin(page: Page, seed: Seed, options: { canWrite?: boolean } = {}): Promise<App> {
   const app = new App(page);
   await page.route('https://cdnjs.cloudflare.com/**', (route) => route.fulfill({ contentType: 'application/javascript', body: '' }));
   await page.addInitScript(installPdfStub);
   await page.addInitScript(installFakeRuntime, { seed, canWrite: options.canWrite ?? true });
   await page.goto(APP_URL);
-  await page.locator('#v .card').first().waitFor();
-  await app.idle();
   return app;
 }
 
-/** Opens the built page where the claude.ai runtime is not available (the viewer is not signed in). */
+/** Opens the built page where the claude.ai runtime is not available, and signs in as the admin. */
 export async function openWithoutRuntime(page: Page): Promise<App> {
   const app = new App(page);
   await page.route('https://cdnjs.cloudflare.com/**', (route) => route.fulfill({ contentType: 'application/javascript', body: '' }));
@@ -158,6 +187,7 @@ export async function openWithoutRuntime(page: Page): Promise<App> {
     (window as unknown as { claude: unknown }).claude = { use: async () => null };
   });
   await page.goto(APP_URL);
+  await signInThroughForm(page, 'admin');
   await page.locator('#v').waitFor();
   return app;
 }

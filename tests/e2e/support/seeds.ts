@@ -34,6 +34,21 @@ export function freshSeed(): Seed {
   return seed;
 }
 
+/** A login created by an admin for Ann, as it is stored: `hash` is SHA-256 of `seedsalt:Seed-Pass-12`. */
+export const SEEDED_LOGIN = { username: 'ann.w', password: 'Seed-Pass-12' } as const;
+
+/** Adds the stored login for Ann to a seed. */
+export function withSeededLogin(seed: Seed): Seed {
+  return {
+    ...seed,
+    [`logins/${SEEDED_LOGIN.username}`]: {
+      personId: 'ann',
+      salt: 'seedsalt',
+      hash: '885f33789d71a3a04b1a68df6c1d0a169296e64c7d126baff5415315d032daff',
+    },
+  };
+}
+
 /**
  * Two Sundays generated before snapshots existed (no `meta`). The first has a verse and a note and uses
  * the removed ministry "Communion Prep"; the second was edited by hand.

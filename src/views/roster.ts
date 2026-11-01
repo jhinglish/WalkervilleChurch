@@ -31,7 +31,7 @@ export function card(d: IsoDate): string {
        `<span class="chip${awayOn(p.id, d) ? ' aw' : ''}${sel && sel.id === p.id && sel.d === d && !sel.k ? ' on' : ''}" draggable="true" data-id="${esc(p.id)}" data-d="${d}" data-k="" title="${awayOn(p.id, d) ? 'Away' : ''}">${esc(p.name)}</span>`,
    )
    .join('')}</div></div>
- <div class="l noprint"><button data-regen="${d}">${state.cf === d ? 'Confirm: replace this Sunday' : 'Regenerate this Sunday'}</button></div></section>`;
+ <div class="l noprint"><button data-requires="generateRoster" data-regen="${d}">${state.cf === d ? 'Confirm: replace this Sunday' : 'Regenerate this Sunday'}</button></div></section>`;
 }
 
 /** The Roster tab: generate, show past, export, then one card per Sunday. */
@@ -41,7 +41,7 @@ export function rosterTab(): string {
   const cut = addDays(todayIso(), -7);
   const shown = [...new Set([...dates, ...Object.keys(state.ros)])].sort().filter((d) => state.past || d >= cut);
   return (
-    `<div class="l noprint"><button class="p" id="gen">Generate ${miss} missing Sunday${miss === 1 ? '' : 's'}</button><button id="past">${state.past ? 'Hide' : 'Show'} past</button><button id="csv">Export CSV</button><span class="mut">Window: 3 rolling months. Existing Sundays are never overwritten.</span></div>` +
+    `<div class="l noprint"><button class="p" id="gen" data-requires="generateRoster">Generate ${miss} missing Sunday${miss === 1 ? '' : 's'}</button><button id="past">${state.past ? 'Hide' : 'Show'} past</button><button id="csv" data-requires="exportCsv">Export CSV</button><span class="mut">Window: 3 rolling months. Existing Sundays are never overwritten.</span></div>` +
     shown.map((d) => card(d)).join('')
   );
 }

@@ -4,11 +4,34 @@ All notable changes to the Walkerville Sunday Roster are recorded here. Dates ar
 
 ## [Unreleased]
 
+### Added
+- **Logins from the Admin tab.** Create a login for a person (username and password), reset a forgotten password or remove a login. Stored in `logins/<username>` with a random salt and a SHA-256 hash. A stored login signs in as its person, with that person's role. The database now connects as the page opens so the sign-in form can check these logins; nothing is drawn or written until someone signs in.
+- **Stronger sign-in.** Five wrong passwords in a row lock a username for 15 minutes in that browser tab, and logins with a stored password can change it on the new Profile tab.
+- **Swaps tab.** Members, team leaders and admins ask for cover on an upcoming Sunday; a team leader of that ministry (or an admin) approves by picking an eligible replacement, which updates the roster, or declines. Requests are in `swaps/<id>`. Leaders cannot decide their own.
+- **Profile tab.** Edit your own name and phone number (`phone` on `people/<id>`) and change your password.
+- **My schedule** now shows past service, a Request swap button per Sunday, and downloads upcoming Sundays as an `.ics` calendar file (`src/ics.ts`, `src/schedule.ts`).
+- Tests: `tests/e2e/logins.spec.ts`, `swaps.spec.ts`, `profile.spec.ts`, and more in `src/auth.test.ts` and `src/ics.test.ts`.
+- Mock sign-in screen and three roles (Admin / Elder, Team Leader, Member), in `src/auth.ts` (profiles, role permissions, session), `src/login.ts` (the form) and `src/mask.ts` (hides tabs and controls a role may not use). Views mark action elements with `data-requires` and `data-edit-ministry`. This is an interface gate only, not security; see the README.
+- Unit tests (`src/auth.test.ts`) and browser tests (`tests/e2e/auth.spec.ts`) for sign-in, sessions and each role.
+- **My schedule** tab (`src/views/mine.ts`), the landing page for every role: the signed-in person's upcoming Sundays, teammates and away dates.
+- Admin tab: *Access and team leaders* table to set each person's role (Admin / Elder, Team Leader, Member) and the ministries a team leader manages, a Team leaders column on the ministries table, and a team leader picker when adding a ministry. Stored as `role` and `leads` on `people/<id>`.
+
+### Changed
+- Sessions last 24 hours (`SESSION_TTL_MS`).
+- The app opens on My schedule instead of Serving. The browser test helper `openApp` moves to Serving afterwards unless `landing: true` is passed.
+- `src/index.html` has a sign-in section and a signed-in bar with Sign out. The browser test helpers (`openApp`, `openWithoutRuntime`) now sign in as the admin first.
+- The Away tab shows a member only their own linked person and entries.
+
+## 2026-10-31
+
 ### Fixed
 - Generating Sundays held a 15-second lease on every new Sunday. A lease cannot be released, so another admin editing one of those Sundays within 15 seconds got "Someone else is editing right now". It now uses the same 3-second lease as every other write (`LEASE_MS` in `src/store.ts`).
 
 ### Added
 - Browser test that generating takes only short leases. The in-memory runtime now records every lease requested (`leases` in `tests/e2e/support/fake-runtime.ts`, `app.leases()`).
+
+### Changed
+- Published to the existing artifact. Before publishing, the type-check, unit tests, build and browser tests had passed on this source, and the live artifact was confirmed to differ from `dist/index.html` only by the lease change. Afterwards the live page was the same size as `dist/index.html` (55,831 bytes).
 
 ## 2026-10-30
 

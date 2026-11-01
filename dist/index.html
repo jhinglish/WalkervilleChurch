@@ -25,10 +25,27 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
 .rec{border-collapse:collapse;font-size:13px}.rec th,.rec td{border:1px solid var(--bd);padding:3px 7px;text-align:center;white-space:nowrap}.rec th:first-child,.rec td:first-child{position:sticky;left:0;background:var(--card);text-align:left}.rec .aw{background:repeating-linear-gradient(45deg,transparent 0 4px,var(--bd) 4px 5px)}.rec .fu{opacity:.55}.rec .hit{background:var(--chip);font-weight:600}.fl{color:var(--bad);font-weight:600}
 @media(max-width:560px){.row{grid-template-columns:1fr}}
 @media print{nav,.noprint,button{display:none}}
-</style></head><body><main>
+[hidden]{display:none!important}
+.login{margin-top:12vh;max-width:380px}.login form{display:flex;flex-direction:column;gap:8px}.login label{font-size:13px;color:var(--mut)}.err{color:var(--bad);font-size:13px;min-height:1.3em}
+.who{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap}.badge{background:var(--chip);border-radius:14px;padding:2px 10px;font-size:13px}.chip.ro{cursor:default}
+</style></head><body>
+<main id="login" class="login" hidden>
+<form id="login-form" class="card" novalidate>
+<h1>Walkerville Sunday Roster</h1>
+<div class="mut">Sign in to view or manage the roster.</div>
+<label for="login-username">Username</label>
+<input id="login-username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false">
+<label for="login-password">Password</label>
+<input id="login-password" name="password" type="password" autocomplete="current-password">
+<div id="login-error" class="err" role="alert"></div>
+<button class="p" type="submit" id="login-submit">Sign in</button>
+</form>
+</main>
+<main id="app" hidden>
+<div class="who noprint"><span id="who" class="badge"></span><button id="signout" type="button">Sign out</button></div>
 <h1>Walkerville Sunday Roster</h1>
 <div class="mut">Tap a name, then tap the ministry box to move them (dragging works too). Drop on “Not serving” to remove. Red = conflict.</div>
-<nav><button data-t="s" class="on">Serving</button><button data-t="r">Roster</button><button data-t="a">Away</button><button data-t="v">Service record</button><button data-t="h">Admin</button></nav>
+<nav><button data-t="m" class="on">My schedule</button><button data-t="w">Swaps</button><button data-t="s">Serving</button><button data-t="r">Roster</button><button data-t="a">Away</button><button data-t="v">Service record</button><button data-t="p">Profile</button><button data-t="h">Admin</button></nav>
 <div id="fl" class="warn noprint"></div><div id="v"></div></main>
 <script>
 "use strict";
@@ -66,6 +83,342 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     );
   }
 
+  // src/auth.ts
+  var ROLES = ["admin", "leader", "member"];
+  var isRole = (value) => value !== void 0 && ROLES.includes(value);
+  var PERMISSIONS = [
+    "viewOwnSchedule",
+    "viewServing",
+    "viewFullRoster",
+    "exportCsv",
+    "generateRoster",
+    "editRoster",
+    "editAllMinistries",
+    "editNotes",
+    "manageAnyAway",
+    "manageOwnAway",
+    "manageMembers",
+    "requestSwap",
+    "decideSwaps",
+    "updateOwnProfile"
+  ];
+  var isPermission = (value) => value !== void 0 && PERMISSIONS.includes(value);
+  var ROLE_DEFINITIONS = {
+    admin: {
+      role: "admin",
+      label: "Admin / Elder",
+      description: "Full control of settings, roster generation and member management.",
+      permissions: PERMISSIONS
+    },
+    leader: {
+      role: "leader",
+      label: "Team Leader",
+      description: "Views the full roster, requests swaps and manages the ministries assigned to them.",
+      permissions: [
+        "viewOwnSchedule",
+        "viewServing",
+        "viewFullRoster",
+        "exportCsv",
+        "editRoster",
+        "editNotes",
+        "manageAnyAway",
+        "manageOwnAway",
+        "requestSwap",
+        "decideSwaps",
+        "updateOwnProfile"
+      ]
+    },
+    member: {
+      role: "member",
+      label: "Member",
+      description: "Views their own schedule, requests swaps, marks their own unavailability and updates their profile.",
+      permissions: ["viewOwnSchedule", "viewServing", "manageOwnAway", "requestSwap", "updateOwnProfile"]
+    }
+  };
+  var TAB_REQUIRES = {
+    m: "viewOwnSchedule",
+    w: "requestSwap",
+    s: "viewServing",
+    r: "viewFullRoster",
+    a: "manageOwnAway",
+    v: "viewFullRoster",
+    p: "updateOwnProfile",
+    h: "manageMembers"
+  };
+  var isTabId = (value) => Object.hasOwn(TAB_REQUIRES, value);
+  var MOCK_USERS = [
+    {
+      id: "u-elder",
+      username: "elder",
+      displayName: "Demo Elder",
+      role: "admin",
+      managedMinistries: [],
+      personId: null,
+      kind: "demo",
+      salt: "wv-elder-1",
+      passwordHash: "1440851cacd7b12eedcceca71057739c07f9908945e53cfc011caa1d4fd186fd"
+    },
+    {
+      id: "u-leader",
+      username: "leader",
+      displayName: "Demo Team Leader",
+      role: "leader",
+      managedMinistries: ["wel", "tea"],
+      personId: "demo-leader",
+      kind: "demo",
+      salt: "wv-leader-1",
+      passwordHash: "126154c6af9883d15f288cda99789a023d7a6afb40de4c3cccc498ee25d6e380"
+    },
+    {
+      id: "u-member",
+      username: "member",
+      displayName: "Demo Member",
+      role: "member",
+      managedMinistries: [],
+      personId: "demo-member",
+      kind: "demo",
+      salt: "wv-member-1",
+      passwordHash: "7820064a13c399dedd44d4a011cdf815a1894dee45f6d46f2715e6f8365f8c14"
+    }
+  ];
+  var storedLogins = {};
+  function setStoredLogins(next) {
+    storedLogins = next;
+  }
+  var storedProfile = (l) => ({
+    id: `l:${l.username}`,
+    username: l.username,
+    displayName: l.displayName,
+    role: "member",
+    managedMinistries: [],
+    personId: l.personId,
+    kind: "stored",
+    salt: l.salt,
+    passwordHash: l.passwordHash
+  });
+  var allProfiles = () => [...MOCK_USERS, ...Object.values(storedLogins).map(storedProfile)];
+  var profileByName = (username) => allProfiles().find((u) => u.username === username);
+  var profileById = (id) => allProfiles().find((u) => u.id === id);
+  var normalizeUsername = (raw) => raw.trim().toLowerCase();
+  var USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,31}$/;
+  var MIN_PASSWORD_LENGTH = 8;
+  var MAX_PASSWORD_LENGTH = 200;
+  function usernameProblem(name, taken) {
+    if (!USERNAME_PATTERN.test(name)) return "Usernames are 3 to 32 letters, digits, dots, dashes or underscores.";
+    if (MOCK_USERS.some((u) => u.username === name) || taken.includes(name)) return "That username is taken.";
+    return null;
+  }
+  function passwordProblem(password) {
+    if (password.length < MIN_PASSWORD_LENGTH) return `Use at least ${MIN_PASSWORD_LENGTH} characters.`;
+    if (password.length > MAX_PASSWORD_LENGTH) return "That password is too long.";
+    return null;
+  }
+  function toPublic(profile) {
+    const assigned = profile.personId ? assignments[profile.personId] : void 0;
+    return {
+      id: profile.id,
+      username: profile.username,
+      displayName: profile.displayName,
+      role: assigned?.role ?? profile.role,
+      managedMinistries: assigned ? assigned.role === "leader" ? assigned.leads : [] : profile.managedMinistries,
+      personId: profile.personId,
+      kind: profile.kind
+    };
+  }
+  var assignments = {};
+  function setAssignments(next) {
+    assignments = next;
+  }
+  function assignmentsFrom(people) {
+    const out = {};
+    for (const person of Object.values(people)) {
+      if (person.role && !person.gone) out[person.id] = { role: person.role, leads: person.leads ?? [] };
+    }
+    return out;
+  }
+  var SESSION_TTL_MS = 24 * 60 * 60 * 1e3;
+  var SESSION_STORAGE_KEY = "walkerville.session";
+  var session = null;
+  function store() {
+    try {
+      return typeof sessionStorage === "undefined" ? null : sessionStorage;
+    } catch {
+      return null;
+    }
+  }
+  function persist(value) {
+    try {
+      const s = store();
+      if (!s) return;
+      if (value) s.setItem(SESSION_STORAGE_KEY, JSON.stringify(value));
+      else s.removeItem(SESSION_STORAGE_KEY);
+    } catch {
+    }
+  }
+  function parseSession(raw) {
+    try {
+      const value = JSON.parse(raw);
+      if (typeof value !== "object" || value === null) return null;
+      const { token, userId, issuedAt, expiresAt } = value;
+      if (typeof token !== "string" || !/^[0-9a-f]{32}$/.test(token)) return null;
+      if (typeof userId !== "string" || typeof issuedAt !== "number" || typeof expiresAt !== "number") return null;
+      return { token, userId, issuedAt, expiresAt };
+    } catch {
+      return null;
+    }
+  }
+  var toHex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  function randomHex(byteCount) {
+    const bytes = new Uint8Array(byteCount);
+    crypto.getRandomValues(bytes);
+    return toHex(bytes);
+  }
+  async function hashPassword(password, salt) {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) throw new Error("Web Crypto is not available");
+    const digest = await subtle.digest("SHA-256", new TextEncoder().encode(`${salt}:${password}`));
+    return toHex(new Uint8Array(digest));
+  }
+  async function newCredentials(password) {
+    const salt = randomHex(16);
+    return { salt, hash: await hashPassword(password, salt) };
+  }
+  async function verifyPassword(username, password) {
+    const profile = profileByName(normalizeUsername(username));
+    if (!profile) return false;
+    try {
+      return await hashPassword(password, profile.salt) === profile.passwordHash;
+    } catch {
+      return false;
+    }
+  }
+  var MAX_ATTEMPTS = 5;
+  var LOCKOUT_MS = 15 * 60 * 1e3;
+  var ATTEMPTS_KEY = "walkerville.attempts";
+  var attempts = null;
+  function loadAttempts() {
+    if (attempts) return attempts;
+    const loaded = {};
+    try {
+      const raw = store()?.getItem(ATTEMPTS_KEY);
+      const value = raw ? JSON.parse(raw) : null;
+      if (typeof value === "object" && value !== null) {
+        for (const [name, entry] of Object.entries(value)) {
+          const { count, until } = entry ?? {};
+          if (typeof count === "number" && typeof until === "number") loaded[name] = { count, until };
+        }
+      }
+    } catch {
+    }
+    attempts = loaded;
+    return loaded;
+  }
+  function saveAttempts() {
+    try {
+      store()?.setItem(ATTEMPTS_KEY, JSON.stringify(loadAttempts()));
+    } catch {
+    }
+  }
+  function lockedUntil(username, now = Date.now()) {
+    const entry = loadAttempts()[username];
+    return entry && entry.until > now ? entry.until : 0;
+  }
+  function recordFailure(username, now) {
+    const all = loadAttempts();
+    const entry = all[username] ?? { count: 0, until: 0 };
+    const count = (entry.until && entry.until <= now ? 0 : entry.count) + 1;
+    if (count >= MAX_ATTEMPTS) {
+      const until = now + LOCKOUT_MS;
+      all[username] = { count: 0, until };
+      saveAttempts();
+      return until;
+    }
+    all[username] = { count, until: 0 };
+    saveAttempts();
+    return 0;
+  }
+  async function signIn(username, password, now = Date.now()) {
+    const name = normalizeUsername(username);
+    const lock = name ? lockedUntil(name, now) : 0;
+    if (lock) return { ok: false, reason: "locked", until: lock };
+    const profile = profileByName(name);
+    let hash;
+    try {
+      hash = await hashPassword(password, profile?.salt ?? "no-such-user");
+    } catch {
+      return { ok: false, reason: "unavailable" };
+    }
+    if (!profile || hash !== profile.passwordHash) {
+      const until = name ? recordFailure(name, now) : 0;
+      return until ? { ok: false, reason: "locked", until } : { ok: false, reason: "invalid" };
+    }
+    const all = loadAttempts();
+    if (all[name]) {
+      delete all[name];
+      saveAttempts();
+    }
+    session = { token: randomHex(16), userId: profile.id, issuedAt: now, expiresAt: now + SESSION_TTL_MS };
+    persist(session);
+    return { ok: true, user: toPublic(profile) };
+  }
+  function restoreSession(now = Date.now()) {
+    let raw = null;
+    try {
+      raw = store()?.getItem(SESSION_STORAGE_KEY) ?? null;
+    } catch {
+      raw = null;
+    }
+    const saved = raw ? parseSession(raw) : null;
+    const profile = saved ? profileById(saved.userId) : void 0;
+    if (!saved || !profile || saved.expiresAt <= now || saved.issuedAt > now) {
+      if (raw) persist(null);
+      return null;
+    }
+    session = saved;
+    return toPublic(profile);
+  }
+  function currentUser(now = Date.now()) {
+    if (!session) return null;
+    if (session.expiresAt <= now) {
+      signOut();
+      return null;
+    }
+    const profile = profileById(session.userId);
+    return profile ? toPublic(profile) : null;
+  }
+  function signOut() {
+    session = null;
+    persist(null);
+  }
+  function can(permission, user = currentUser()) {
+    return user !== null && ROLE_DEFINITIONS[user.role].permissions.includes(permission);
+  }
+  var canViewTab = (tab, user = currentUser()) => can(TAB_REQUIRES[tab], user);
+  function canEditMinistry(key, user = currentUser()) {
+    if (!user) return false;
+    if (can("editAllMinistries", user)) return true;
+    return can("editRoster", user) && user.managedMinistries.includes(key);
+  }
+  function canEditAnyMinistry(user = currentUser()) {
+    if (!user) return false;
+    return can("editAllMinistries", user) || can("editRoster", user) && user.managedMinistries.length > 0;
+  }
+  function canMoveBetween(from, to, user = currentUser()) {
+    if (!user) return false;
+    if (can("editAllMinistries", user)) return true;
+    const keys = [from, to].filter((k) => k !== "");
+    return keys.length > 0 && keys.every((k) => canEditMinistry(k, user));
+  }
+  function canManageAway(personId, user = currentUser()) {
+    if (!user) return false;
+    if (can("manageAnyAway", user)) return true;
+    return can("manageOwnAway", user) && user.personId !== null && user.personId === personId;
+  }
+  function canDecideSwap(ministry, requester, user = currentUser()) {
+    if (!user || !can("decideSwaps", user) || !canEditMinistry(ministry, user)) return false;
+    return can("editAllMinistries", user) || user.personId !== requester;
+  }
+
   // src/dates.ts
   var DAY_MS = 864e5;
   function addDays(date, days) {
@@ -74,13 +427,13 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
   function todayIso(now = /* @__PURE__ */ new Date()) {
     return now.toISOString().slice(0, 10);
   }
-  function sundaysInWindow(start, today) {
-    const from = today > start ? today : start;
+  function sundaysInWindow(start2, today) {
+    const from = today > start2 ? today : start2;
     const end = /* @__PURE__ */ new Date(`${from}T00:00:00Z`);
     end.setUTCMonth(end.getUTCMonth() + 3);
     const last = end.toISOString().slice(0, 10);
     const sundays = [];
-    for (let d = start; d <= last; d = addDays(d, 7)) sundays.push(d);
+    for (let d = start2; d <= last; d = addDays(d, 7)) sundays.push(d);
     return sundays;
   }
   function formatDate(date) {
@@ -98,6 +451,37 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
       month: "short",
       timeZone: "UTC"
     });
+  }
+
+  // src/ics.ts
+  function icsEscape(text2) {
+    return text2.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+  }
+  function icsFold(line) {
+    if (line.length <= 73) return [line];
+    const out = [line.slice(0, 73)];
+    for (let i = 73; i < line.length; i += 72) out.push(` ${line.slice(i, i + 72)}`);
+    return out;
+  }
+  var compactDate = (date) => date.replace(/-/g, "");
+  function buildIcs(events, stamp) {
+    const dtstamp = stamp.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+    const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Walkerville Church Plant//Sunday Roster//EN", "CALSCALE:GREGORIAN"];
+    for (const event of events) {
+      lines.push(
+        "BEGIN:VEVENT",
+        `UID:${event.uid}`,
+        `DTSTAMP:${dtstamp}`,
+        `DTSTART;VALUE=DATE:${compactDate(event.date)}`,
+        `DTEND;VALUE=DATE:${compactDate(addDays(event.date, 1))}`,
+        `SUMMARY:${icsEscape(event.summary)}`
+      );
+      if (event.description) lines.push(`DESCRIPTION:${icsEscape(event.description)}`);
+      lines.push("END:VEVENT");
+    }
+    lines.push("END:VCALENDAR");
+    return `${lines.flatMap(icsFold).join("\r\n")}\r
+`;
   }
 
   // src/model.ts
@@ -136,9 +520,9 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
   }
 
   // src/generate.ts
-  function generateAssignments(input) {
-    const { date, ministries, away, prior } = input;
-    const candidates = input.people.filter((p) => !p.gone);
+  function generateAssignments(input2) {
+    const { date, ministries, away, prior } = input2;
+    const candidates = input2.people.filter((p) => !p.gone);
     const lastIndex = /* @__PURE__ */ new Map();
     const timesServed = /* @__PURE__ */ new Map();
     prior.forEach((roster, i) => {
@@ -151,12 +535,12 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     });
     const poolSize = (m) => candidates.filter((p) => p.elig.includes(m.k)).length;
     const order = [...ministries].sort((a, b) => (b.x ? 1 : 0) - (a.x ? 1 : 0) || poolSize(a) - poolSize(b));
-    const assignments = {};
+    const assignments2 = {};
     const used = /* @__PURE__ */ new Set();
     const inExclusive = /* @__PURE__ */ new Set();
     for (const m of order) {
       const slot = [];
-      assignments[m.k] = slot;
+      assignments2[m.k] = slot;
       for (let n = 0; n < m.n; n++) {
         let pool = candidates.filter(
           (p) => p.elig.includes(m.k) && !isAway(away, p.id, date) && !slot.includes(p.id) && !inExclusive.has(p.id)
@@ -173,7 +557,7 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
         if (m.x) inExclusive.add(chosen.id);
       }
     }
-    return assignments;
+    return assignments2;
   }
 
   // src/issues.ts
@@ -225,11 +609,13 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     people: {},
     ros: {},
     away: {},
+    swaps: {},
+    logins: {},
     log: [],
     names: {},
     loaded: { config: false, people: false, rosters: false },
     ready: false,
-    tab: "s",
+    tab: "m",
     sel: null,
     past: false,
     cf: null,
@@ -238,6 +624,7 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     pick: "",
     nd: "",
     fd: "",
+    swapDraft: "",
     drafts: {}
   };
   var tabId = `t${Math.random().toString(36).slice(2)}`;
@@ -270,6 +657,29 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     prior
   });
   var byDate = (a, b) => a.date < b.date ? -1 : 1;
+
+  // src/schedule.ts
+  function slotsFor(personId) {
+    const today = todayIso();
+    const upcoming = [];
+    const past = [];
+    for (const date of Object.keys(state.ros).sort()) {
+      const roster = state.ros[date];
+      if (!roster) continue;
+      for (const m of ministriesOn(date)) {
+        const ids = roster.s[m.k] ?? [];
+        if (!ids.includes(personId)) continue;
+        (date >= today ? upcoming : past).push({
+          date,
+          ministryKey: m.k,
+          ministry: m.l,
+          with: ids.filter((i) => i !== personId).map((i) => nameOn(date, i)),
+          away: awayOn(personId, date)
+        });
+      }
+    }
+    return { upcoming, past };
+  }
 
   // src/exports.ts
   async function exportPdf(date) {
@@ -311,6 +721,18 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     }
     await downloads.save({ filename: `serving-${date}.pdf`, data: pdf.output("blob") });
   }
+  function exportMyIcs() {
+    const personId = currentUser()?.personId;
+    if (!personId) return;
+    const events = slotsFor(personId).upcoming.map((s) => ({
+      uid: `${s.date}-${s.ministryKey}-${personId}@walkerville-roster`,
+      date: s.date,
+      summary: `Serving: ${s.ministry}`,
+      description: s.with.length ? `With ${s.with.join(", ")}` : void 0
+    }));
+    state.downloads?.save({ filename: "my-roster.ics", data: buildIcs(events, /* @__PURE__ */ new Date()) }).catch(() => {
+    });
+  }
   function exportCsv() {
     const rosters = Object.values(state.ros);
     const ministries = allMinistriesNow().filter((m) => !m.gone || rosters.some((r) => (r.s[m.k] ?? []).length));
@@ -328,6 +750,37 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     });
   }
 
+  // src/mask.ts
+  function applyRoleMask(root) {
+    const user = currentUser();
+    for (const el of root.querySelectorAll("[data-requires]")) {
+      const permission = el.dataset["requires"];
+      if (!isPermission(permission) || !can(permission, user)) el.remove();
+    }
+    for (const el of root.querySelectorAll("[data-edit-ministry]")) {
+      if (!canEditMinistry(el.dataset["editMinistry"] ?? "", user)) el.remove();
+    }
+    for (const chip of root.querySelectorAll(".chip[data-id]")) {
+      const key = chip.dataset["k"] ?? "";
+      const movable = key ? canEditMinistry(key, user) : canEditAnyMinistry(user);
+      if (!movable) {
+        chip.draggable = false;
+        chip.classList.add("ro");
+        chip.setAttribute("aria-disabled", "true");
+      }
+    }
+  }
+  function syncNav() {
+    const user = currentUser();
+    const who = document.getElementById("who");
+    if (who && user) who.textContent = `${user.displayName} \xB7 ${ROLE_DEFINITIONS[user.role].label}`;
+    for (const button of document.querySelectorAll("nav button[data-t]")) {
+      const tab = button.dataset["t"] ?? "";
+      button.hidden = !(isTabId(tab) && canViewTab(tab, user));
+      button.classList.toggle("on", tab === state.tab);
+    }
+  }
+
   // src/views/admin.ts
   function adminTab() {
     const all = allMinistriesNow();
@@ -336,12 +789,39 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     const people = peopleByName();
     const present = people.filter((p) => !p.gone);
     const removed = people.filter((p) => p.gone);
-    return `<div class="card"><h3>Ministries</h3><div style="overflow-x:auto"><table class="rec"><tr><th>Ministry</th><th>People needed</th><th>Exclusive</th><th></th></tr>` + all.map(
-      (m) => `<tr class="${m.gone ? "fu" : ""}"><td><input data-mf="l" data-mk="${K(m.k)}" value="${K(m.l)}"></td><td><input type="number" min="0" style="width:64px" data-mf="n" data-mk="${K(m.k)}" value="${m.n}"></td><td><input type="checkbox" data-mf="x" data-mk="${K(m.k)}"${m.x ? " checked" : ""}></td><td>${m.gone ? `<button data-mrs="${K(m.k)}">Restore</button>` : `<button data-mrm="${K(m.k)}">${state.cf === `m:${m.k}` ? "Confirm remove" : "Remove"}</button>`}</td></tr>`
-    ).join("") + `</table></div><div class="l"><input id="mn" placeholder="New ministry name"><input id="mc" type="number" min="0" value="1" style="width:64px" title="People needed"><label><input id="mx" type="checkbox"> Exclusive</label><button class="p" id="madd">Add ministry</button></div></div>
+    const leadersOf = (key) => present.filter((p) => p.role === "leader" && (p.leads ?? []).includes(key)).map((p) => esc(p.name)).join(", ") || "-";
+    return `<div class="card"><h3>Ministries</h3><div style="overflow-x:auto"><table class="rec"><tr><th>Ministry</th><th>People needed</th><th>Exclusive</th><th>Team leaders</th><th></th></tr>` + all.map(
+      (m) => `<tr class="${m.gone ? "fu" : ""}"><td><input data-mf="l" data-mk="${K(m.k)}" value="${K(m.l)}"></td><td><input type="number" min="0" style="width:64px" data-mf="n" data-mk="${K(m.k)}" value="${m.n}"></td><td><input type="checkbox" data-mf="x" data-mk="${K(m.k)}"${m.x ? " checked" : ""}></td><td>${leadersOf(m.k)}</td><td>${m.gone ? `<button data-mrs="${K(m.k)}">Restore</button>` : `<button data-mrm="${K(m.k)}">${state.cf === `m:${m.k}` ? "Confirm remove" : "Remove"}</button>`}</td></tr>`
+    ).join("") + `</table></div><div class="l"><input id="mn" placeholder="New ministry name"><input id="mc" type="number" min="0" value="1" style="width:64px" title="People needed"><label><input id="mx" type="checkbox"> Exclusive</label><select id="ml" title="Team leader"><option value="">Team leader (optional)</option>${present.map((p) => `<option value="${K(p.id)}">${K(p.name)}</option>`).join("")}</select><button class="p" id="madd">Add ministry</button></div></div>
  <div class="card"><h3>People</h3><div style="overflow-x:auto"><table class="rec"><tr><th>Name</th><th>Family</th>${active.map((m) => `<th>${esc(m.l)}</th>`).join("")}<th></th></tr>` + present.map(
       (p) => `<tr><td><input data-pf="name" data-pid="${K(p.id)}" value="${K(p.name)}"></td><td><input type="number" min="0" style="width:60px" data-pf="fam" data-pid="${K(p.id)}" value="${p.family || 0}"></td>${active.map((m) => `<td><input type="checkbox" data-pe="${K(m.k)}" data-pid="${K(p.id)}"${p.elig.includes(m.k) ? " checked" : ""}></td>`).join("")}<td><button data-prm="${K(p.id)}">${state.cf === `p:${p.id}` ? "Confirm remove" : "Remove"}</button></td></tr>`
-    ).join("") + `</table></div><div class="l"><input id="pn" placeholder="New person\u2019s name"><input id="pf" type="number" min="0" placeholder="Family" style="width:84px"><button class="p" id="padd">Add person</button></div>${removed.length ? '<div class="mut">Removed people</div>' + removed.map((p) => `<div class="l">${esc(p.name)}<button data-prs="${K(p.id)}">Restore</button></div>`).join("") : ""}</div>`;
+    ).join("") + `</table></div><div class="l"><input id="pn" placeholder="New person\u2019s name"><input id="pf" type="number" min="0" placeholder="Family" style="width:84px"><button class="p" id="padd">Add person</button></div>${removed.length ? '<div class="mut">Removed people</div>' + removed.map((p) => `<div class="l">${esc(p.name)}<button data-prs="${K(p.id)}">Restore</button></div>`).join("") : ""}</div><div class="card"><h3>Access and team leaders</h3><div class="mut">Set what each person may do. A role only takes effect for a person who has a login linked to them (see the Login column). Tick the ministries a team leader manages.</div><div style="overflow-x:auto"><table class="rec"><tr><th>Name</th><th>Login</th><th>Role</th>${active.map((m) => `<th>Leads ${esc(m.l)}</th>`).join("")}</tr>` + present.map((p) => {
+      const role = p.role ?? "member";
+      const login = MOCK_USERS.find((u) => u.personId === p.id)?.username;
+      return `<tr><td>${K(p.name)}</td><td>${login ? K(login) : "-"}</td><td><select data-prole="1" data-pid="${K(p.id)}">${ROLES.map((r) => `<option value="${r}"${r === role ? " selected" : ""}>${esc(ROLE_DEFINITIONS[r].label)}</option>`).join("")}</select></td>${active.map((m) => `<td><input type="checkbox" data-plead="${K(m.k)}" data-pid="${K(p.id)}"${(p.leads ?? []).includes(m.k) ? " checked" : ""}${role === "leader" ? "" : " disabled"}></td>`).join("")}</tr>`;
+    }).join("") + "</table></div></div>" + loginsCard(present);
+  }
+  function loginsCard(present) {
+    const K = esc;
+    const usernames = Object.keys(state.logins).sort();
+    const withLogin = new Set(Object.values(state.logins).map((l) => l.personId));
+    const roleOf = (personId) => {
+      const person = personId ? state.people[personId] : void 0;
+      return ROLE_DEFINITIONS[person?.role ?? "member"].label;
+    };
+    const demo = MOCK_USERS.map(
+      (u) => `<tr><td>${K(u.username)}</td><td>${u.personId ? K(state.people[u.personId]?.name ?? u.personId) : "-"}</td><td>${K(
+        u.personId && state.people[u.personId]?.role ? roleOf(u.personId) : ROLE_DEFINITIONS[u.role].label
+      )}</td><td class="mut">Built in (password fixed in code)</td></tr>`
+    ).join("");
+    const stored = usernames.map((username) => {
+      const login = state.logins[username];
+      if (!login) return "";
+      const confirming = state.cf === `l:${username}`;
+      return `<tr><td>${K(username)}</td><td>${K(state.people[login.personId]?.name ?? login.personId)}</td><td>${K(roleOf(login.personId))}</td><td><input type="password" id="lp-${K(username)}" data-keep="1" autocomplete="new-password" placeholder="New password"><button data-lreset="${K(username)}">Reset password</button><button data-lrm="${K(username)}">${confirming ? "Confirm remove" : "Remove"}</button></td></tr>`;
+    }).join("");
+    const free = present.filter((p) => !withLogin.has(p.id));
+    return `<div class="card"><h3>Logins</h3><div class="mut">A login signs in as the person it is linked to, with that person's role. Give people their password in person; they can change it on their Profile tab. Usernames are 3 to 32 letters, digits, dots, dashes or underscores. Passwords need 8 or more characters.</div><div style="overflow-x:auto"><table class="rec"><tr><th>Username</th><th>Person</th><th>Role</th><th></th></tr>${demo}${stored}</table></div>${free.length ? `<div class="l"><select id="lperson" data-keep="1">${free.map((p) => `<option value="${K(p.id)}">${K(p.name)}</option>`).join("")}</select><input id="lname" data-keep="1" autocomplete="off" autocapitalize="none" placeholder="Username"><input id="lpass" type="password" data-keep="1" autocomplete="new-password" placeholder="Password"><button class="p" id="ladd">Create login</button></div>` : '<div class="mut">Everyone on the roster already has a login.</div>'}</div>`;
   }
   function changeLog() {
     return `<div class="card"><h3>Change log</h3>${state.log.map(
@@ -351,18 +831,91 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
 
   // src/views/away.ts
   function awayTab() {
-    const people = peopleByName().filter((p) => p.elig.length && !p.gone);
-    const entries = Object.entries(state.away).sort((a, b) => a[1].from < b[1].from ? -1 : 1);
-    return `<div class="card"><h3>Flag unavailability</h3><div class="l"><select id="ap">${people.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>
+    const people = peopleByName().filter((p) => p.elig.length && !p.gone && canManageAway(p.id));
+    const entries = Object.entries(state.away).filter(([, a]) => canManageAway(a.person)).sort((a, b) => a[1].from < b[1].from ? -1 : 1);
+    const form = people.length ? `<div class="l"><select id="ap">${people.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>
   <input type="date" id="af"><span>to</span><input type="date" id="at"><input id="an" placeholder="Note (optional)"><button class="p" id="aadd">Add</button></div>
-  <div class="mut">Leave \u201Cto\u201D blank for a single date. Rosters already generated are flagged in red; use \u201CRegenerate this Sunday\u201D to refill.</div></div>
+  <div class="mut">Leave \u201Cto\u201D blank for a single date. Rosters already generated are flagged in red; use \u201CRegenerate this Sunday\u201D to refill.</div>` : '<div class="mut">There is nobody you can flag as unavailable yet. A member login must be linked to a person on the roster.</div>';
+    return `<div class="card"><h3>Flag unavailability</h3>${form}</div>
   <div class="card"><h3>Away</h3>${entries.map(
       ([k, a]) => `<div class="l">${esc(state.people[a.person]?.name || a.person)} \xB7 ${a.from}${a.to !== a.from ? ` to ${a.to}` : ""} ${a.note ? `\xB7 ${esc(a.note)}` : ""}<button data-del="${esc(k)}">Remove</button></div>`
     ).join("") || '<span class="mut">Nobody flagged.</span>'}</div>`;
   }
 
+  // src/views/mine.ts
+  var PAST_SHOWN = 5;
+  var withText = (s) => s.with.length ? ` <span class="mut">with ${esc(s.with.join(", "))}</span>` : "";
+  function mineTab() {
+    const personId = currentUser()?.personId ?? null;
+    const person = personId ? state.people[personId] : void 0;
+    if (!personId || !person) {
+      return '<div class="card"><h3>My schedule</h3><p class="mut">Your login is not linked to a person on the roster, so there is no personal schedule to show. Use the Serving tab to see who is serving this Sunday. An admin links a login to a person.</p></div>';
+    }
+    const { upcoming, past } = slotsFor(personId);
+    const today = todayIso();
+    const next = upcoming[0];
+    const away = Object.values(state.away).filter((a) => a.person === personId && a.to >= today).sort((a, b) => a.from < b.from ? -1 : 1);
+    const requested = (s) => Object.values(state.swaps).some((x) => x.status === "open" && x.from === personId && x.date === s.date && x.ministry === s.ministryKey);
+    const nextCard = next ? `<div class="card sv"><b>Next time you are serving</b><h3>${formatDate(next.date)}: ${esc(next.ministry)}</h3>${next.with.length ? `<div class="mut">With ${esc(next.with.join(", "))}</div>` : ""}${next.away ? '<div class="warn">\u26A0 You are marked away on this date. Tell a team leader.</div>' : ""}</div>` : '<div class="card"><b>Next time you are serving</b><p class="mut">You are not on the roster for any upcoming Sunday that has been generated.</p></div>';
+    const list = upcoming.length ? upcoming.map(
+      (s) => `<div class="row"><b>${formatDate(s.date)}</b><div>${esc(s.ministry)}${withText(s)}${s.away ? ' <span class="warn">\u26A0 marked away</span>' : ""} ${requested(s) ? '<span class="mut">\xB7 swap requested</span>' : `<button class="noprint" data-requires="requestSwap" data-swapfor="${esc(s.date)}|${esc(s.ministryKey)}">Request swap</button>`}</div></div>`
+    ).join("") : '<span class="mut">Nothing yet.</span>';
+    const awayList2 = away.length ? away.map((a) => `<div class="l">${a.from}${a.to !== a.from ? ` to ${a.to}` : ""}${a.note ? ` \xB7 ${esc(a.note)}` : ""}</div>`).join("") : '<span class="mut">No upcoming away dates. Use the Away tab to flag one.</span>';
+    const recent = past.slice(-PAST_SHOWN).reverse().map((s) => `<div class="row"><b>${formatDate(s.date)}</b><div>${esc(s.ministry)}${withText(s)}</div></div>`).join("");
+    const history = past.length ? `<div class="card"><h3>Your service so far</h3><div class="mut">You have served ${past.length} time${past.length === 1 ? "" : "s"} on recorded Sundays. Most recent:</div>${recent}</div>` : "";
+    return `<div class="card"><h3>${esc(person.name)}</h3><div class="mut">Your upcoming Sundays on the roster.</div>${upcoming.length ? '<div class="l noprint"><button id="ics">Download calendar (.ics)</button></div>' : ""}</div>${nextCard}<div class="card"><h3>All upcoming Sundays</h3>${list}</div><div class="card"><h3>Your away dates</h3>${awayList2}</div>${history}`;
+  }
+
+  // src/views/profile.ts
+  function profileTab() {
+    const user = currentUser();
+    if (!user) return "";
+    const person = user.personId ? state.people[user.personId] : void 0;
+    const role = ROLE_DEFINITIONS[user.role];
+    const account = `<div class="mut">Signed in as <b>${esc(user.username)}</b> \xB7 ${esc(role.label)}. ${esc(role.description)}</div>`;
+    const details = person ? `<div class="card"><h3>My details</h3>${account}
+  <div class="l"><label>Name <input data-prof="name" data-keep="1" maxlength="60" value="${esc(person.name)}"></label>
+  <label>Phone <input data-prof="phone" data-keep="1" maxlength="60" value="${esc(person.phone ?? "")}" placeholder="Optional"></label></div>
+  <div class="mut">Changes save when you leave the box. Leaders and admins can see your name; your phone number is stored with your roster details.</div>
+  <div class="mut">Ministries you can serve in: ${esc(
+      allMinistriesNow().filter((m) => !m.gone && person.elig.includes(m.k)).map((m) => m.l).join(", ")
+    ) || "none yet. Ask an admin."}</div></div>` : `<div class="card"><h3>My details</h3>${account}<p class="mut">Your login is not linked to a person on the roster, so there are no details to edit. An admin links a login to a person.</p></div>`;
+    const password = user.kind === "stored" ? `<div class="card"><h3>Change password</h3>
+  <div class="l"><input type="password" id="pw-cur" data-keep="1" autocomplete="current-password" placeholder="Current password">
+  <input type="password" id="pw-new" data-keep="1" autocomplete="new-password" placeholder="New password (8+ characters)">
+  <input type="password" id="pw-new2" data-keep="1" autocomplete="new-password" placeholder="Repeat new password">
+  <button class="p" id="pwsave">Change password</button></div></div>` : '<div class="card"><h3>Password</h3><p class="mut">This is a built-in demo account. Its password is fixed in the code and cannot be changed here.</p></div>';
+    return details + password;
+  }
+
   // src/help.ts
   var HELP = {
+    m: {
+      intro: "Your own roster: the Sundays you are serving and where, and your away dates. This is the first page you see when you sign in.",
+      points: [
+        "Shows only upcoming Sundays that have been generated, so it grows as the roster is extended.",
+        "If a Sunday shows \u201Cmarked away\u201D, you are on the roster for a day you flagged as unavailable. Tell a team leader so they can arrange cover.",
+        "To flag a date you cannot serve, use the Away tab.",
+        "If it says your login is not linked to a person, ask an admin to link it.",
+        "Request swap beside a Sunday asks a team leader to find cover. Download calendar (.ics) saves your upcoming Sundays for any calendar app."
+      ]
+    },
+    w: {
+      intro: "Ask for cover when you cannot serve, and follow your requests. Team leaders and admins also decide requests here.",
+      points: [
+        "Pick one of your upcoming Sundays and send the request. A team leader of that ministry chooses who covers it.",
+        "Cancel a request while it is still waiting. Once approved, the roster has already changed.",
+        "Team leaders and admins: Approve puts the chosen person on the roster in place of the requester. Only people eligible for that ministry and not already on the team are offered. You cannot decide your own request unless you are an admin."
+      ]
+    },
+    p: {
+      intro: "Your own name and phone number, and your password if your login was created in the Admin tab.",
+      points: [
+        "Name and phone save when you leave the box.",
+        "Passwords need at least 8 characters. After 5 wrong passwords in a row a username is locked for 15 minutes on this device.",
+        "The built-in demo accounts cannot change their password here."
+      ]
+    },
     s: {
       intro: "Who is serving this coming Sunday. Use this page to check the list, share it (Export PDF) or make last-minute changes.",
       points: [
@@ -410,6 +963,8 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
         "Add a person with the form under the people table. Remove takes someone off the lists and out of future automatic rosters. Their past service stays in the Service record, and you can bring them back from \u201CRemoved people\u201D. If a removed person is still on a future Sunday, that Sunday shows them in red until you move them.",
         "Ministries: rename one, change how many people it needs (used only when generating automatically) or mark it exclusive (anyone serving in it can\u2019t serve in anything else that day). Remove stops a ministry being used for new Sundays. Sundays that already exist keep showing it, with the people assigned, exactly as generated. Restore brings it back.",
         "Each Sunday keeps a locked copy of the ministry names, headcounts, exclusive settings, people names and eligibility from when it was generated, so changes here never alter existing Sundays. A new ministry only appears on an existing Sunday if you press Regenerate on it. Sundays generated before this feature existed are locked automatically the first time the page is opened by someone who can edit.",
+        "Access and team leaders: choose each person\u2019s role (Admin / Elder, Team Leader or Member) and tick the ministries a team leader manages. A role only takes effect for a person who has a login linked to them. When adding a ministry you can pick its team leader straight away.",
+        "Logins: create a login for a person with a username and password, reset a forgotten password, or remove a login. A login signs in as its person, with that person\u2019s role.",
         "Change log (at the bottom): every change, newest first, with who made it."
       ]
     }
@@ -419,11 +974,11 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
   var TEXTAREA_STYLE = "width:100%;box-sizing:border-box;font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:6px 10px";
   function verseBox(date) {
     const verse = state.drafts[`v${date}`] ?? state.ros[date]?.verse ?? "";
-    return `<div class="noprint"><textarea data-verse="${date}" rows="2" style="${TEXTAREA_STYLE}" placeholder="Verse for this Sunday, e.g. reference and text\u2026">${esc(verse)}</textarea><div class="l"><button data-vsave="${date}">Save verse</button></div></div>`;
+    return `<div class="noprint" data-requires="editNotes"><textarea data-verse="${date}" rows="2" style="${TEXTAREA_STYLE}" placeholder="Verse for this Sunday, e.g. reference and text\u2026">${esc(verse)}</textarea><div class="l"><button data-vsave="${date}">Save verse</button></div></div>`;
   }
   function noteBox(date) {
     const note = state.drafts[date] ?? state.ros[date]?.note ?? "";
-    return `<div class="noprint"><textarea data-note="${date}" rows="3" style="${TEXTAREA_STYLE}" placeholder="Notes for this Sunday\u2026">${esc(note)}</textarea><div class="l"><button data-nsave="${date}">Save note</button></div></div>`;
+    return `<div class="noprint" data-requires="editNotes"><textarea data-note="${date}" rows="3" style="${TEXTAREA_STYLE}" placeholder="Notes for this Sunday\u2026">${esc(note)}</textarea><div class="l"><button data-nsave="${date}">Save note</button></div></div>`;
   }
   function helpBox(tab) {
     const help = HELP[tab];
@@ -459,11 +1014,11 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
       const ids = r.s[m.k] || [];
       const opts = peopleByName().filter((p) => !p.gone && p.elig.includes(m.k) && !ids.includes(p.id));
       return `<div class="row"><b>${esc(m.l)}<div class="mut">${m.n} needed</div></b><div>${ids.map(
-        (i) => `<span${out[i] ? ' class="warn"' : ""}>${esc(nameOn(d, i))}<span class="x" data-srm="${m.k}|${esc(i)}" data-d="${d}" title="Remove">\u2715</span></span>`
-      ).join(", ") || '<span class="mut">Unfilled</span>'}<div class="l"><select id="sa-${m.k}"><option value="">Add\u2026</option>${opts.map(
+        (i) => `<span${out[i] ? ' class="warn"' : ""}>${esc(nameOn(d, i))}<span class="x" data-edit-ministry="${m.k}" data-srm="${m.k}|${esc(i)}" data-d="${d}" title="Remove">\u2715</span></span>`
+      ).join(", ") || '<span class="mut">Unfilled</span>'}<div class="l" data-edit-ministry="${m.k}"><select id="sa-${m.k}"><option value="">Add\u2026</option>${opts.map(
         (p) => `<option value="${esc(p.id)}">${esc(p.name)}${awayOn(p.id, d) ? " (away)" : on[p.id] ? ` (also: ${esc(on[p.id])})` : ""}</option>`
       ).join("")}</select><button data-sadd="${m.k}" data-d="${d}">Add</button></div></div></div>`;
-    }).join("") + `<div class="l"><button data-regen="${d}">${state.cf === d ? "Confirm: replace this Sunday" : "Regenerate this Sunday"}</button></div></div>`;
+    }).join("") + `<div class="l"><button data-requires="generateRoster" data-regen="${d}">${state.cf === d ? "Confirm: replace this Sunday" : "Regenerate this Sunday"}</button></div></div>`;
   }
   function recordTab() {
     const M = allMinistriesNow;
@@ -542,14 +1097,14 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
  <div class="row bench"><b>Not serving</b><div class="drop" data-drop="" data-d="${d}">${bench.map(
       (p) => `<span class="chip${awayOn(p.id, d) ? " aw" : ""}${sel && sel.id === p.id && sel.d === d && !sel.k ? " on" : ""}" draggable="true" data-id="${esc(p.id)}" data-d="${d}" data-k="" title="${awayOn(p.id, d) ? "Away" : ""}">${esc(p.name)}</span>`
     ).join("")}</div></div>
- <div class="l noprint"><button data-regen="${d}">${state.cf === d ? "Confirm: replace this Sunday" : "Regenerate this Sunday"}</button></div></section>`;
+ <div class="l noprint"><button data-requires="generateRoster" data-regen="${d}">${state.cf === d ? "Confirm: replace this Sunday" : "Regenerate this Sunday"}</button></div></section>`;
   }
   function rosterTab() {
     const dates = windowDates();
     const miss = dates.filter((d) => !state.ros[d]).length;
     const cut = addDays(todayIso(), -7);
     const shown = [.../* @__PURE__ */ new Set([...dates, ...Object.keys(state.ros)])].sort().filter((d) => state.past || d >= cut);
-    return `<div class="l noprint"><button class="p" id="gen">Generate ${miss} missing Sunday${miss === 1 ? "" : "s"}</button><button id="past">${state.past ? "Hide" : "Show"} past</button><button id="csv">Export CSV</button><span class="mut">Window: 3 rolling months. Existing Sundays are never overwritten.</span></div>` + shown.map((d) => card(d)).join("");
+    return `<div class="l noprint"><button class="p" id="gen" data-requires="generateRoster">Generate ${miss} missing Sunday${miss === 1 ? "" : "s"}</button><button id="past">${state.past ? "Hide" : "Show"} past</button><button id="csv" data-requires="exportCsv">Export CSV</button><span class="mut">Window: 3 rolling months. Existing Sundays are never overwritten.</span></div>` + shown.map((d) => card(d)).join("");
   }
 
   // src/views/serving.ts
@@ -562,29 +1117,96 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     const ministries = ministriesOn(d);
     for (const m of ministries) for (const i of r.s[m.k] || []) on[i] = m.l;
     const sedit = state.sedit;
-    return `<div class="l noprint"><button class="p" id="pdf" data-d="${d}">Export PDF</button><button id="sedit">${sedit ? "Done editing" : "Edit"}</button></div>
+    return `<div class="l noprint"><button class="p" id="pdf" data-d="${d}">Export PDF</button><button id="sedit" data-requires="editRoster">${sedit ? "Done editing" : "Edit"}</button></div>
  <section class="card sv"><h3>${formatDate(d)}</h3>${r.verse ? `<p style="white-space:pre-wrap;font-style:italic">${esc(r.verse)}</p>` : ""}${sedit && sum.length ? `<div class="warn noprint">\u26A0 ${esc(sum.join(" \xB7 "))}</div>` : ""}` + ministries.map((m) => {
       const ids = r.s[m.k] || [];
       const opts = peopleByName().filter((p) => !p.gone && p.elig.includes(m.k) && !ids.includes(p.id));
       return `<div class="row"><b>${esc(m.l)}</b><div>${ids.map(
-        (i) => `<span${out[i] && sedit ? ' class="warn"' : ""}>${esc(nameOn(d, i))}${sedit ? `<span class="x" data-srm="${m.k}|${esc(i)}" data-d="${d}" title="Remove">\u2715</span>` : ""}</span>`
+        (i) => `<span${out[i] && sedit ? ' class="warn"' : ""}>${esc(nameOn(d, i))}${sedit ? `<span class="x" data-edit-ministry="${m.k}" data-srm="${m.k}|${esc(i)}" data-d="${d}" title="Remove">\u2715</span>` : ""}</span>`
       ).join(", ") || '<span class="mut">Unfilled</span>'}
-  ${sedit ? `<div class="l noprint"><select id="sa-${m.k}"><option value="">Add\u2026</option>${opts.map(
+  ${sedit ? `<div class="l noprint" data-edit-ministry="${m.k}"><select id="sa-${m.k}"><option value="">Add\u2026</option>${opts.map(
         (p) => `<option value="${esc(p.id)}">${esc(p.name)}${awayOn(p.id, d) ? " (away)" : on[p.id] ? ` (also: ${esc(on[p.id])})` : ""}</option>`
       ).join("")}</select><button data-sadd="${m.k}" data-d="${d}">Add</button></div>` : ""}</div></div>`;
-    }).join("") + '</section><div class="card noprint"><b>Verse for this Sunday</b><div class="mut">Shown at the top of the PDF.</div>' + verseBox(d) + '</div><div class="card noprint"><b>Notes for this Sunday</b>' + noteBox(d) + "</div>";
+    }).join("") + '</section><div class="card noprint" data-requires="editNotes"><b>Verse for this Sunday</b><div class="mut">Shown at the top of the PDF.</div>' + verseBox(d) + '</div><div class="card noprint" data-requires="editNotes"><b>Notes for this Sunday</b>' + noteBox(d) + "</div>";
+  }
+
+  // src/views/swaps.ts
+  var STATUS_TEXT = { open: "waiting for a team leader", approved: "approved", declined: "declined", cancelled: "cancelled" };
+  var personName2 = (id) => state.people[id]?.name ?? id;
+  var ministryName = (s) => ministriesOn(s.date).find((m) => m.k === s.ministry)?.l ?? s.ministry;
+  var newestFirst = (a, b) => a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0;
+  function coverOptions(s) {
+    const onTeam = state.ros[s.date]?.s[s.ministry] ?? [];
+    return peopleByName().filter((p) => !p.gone && p.id !== s.from && p.elig.includes(s.ministry) && !onTeam.includes(p.id)).map((p) => `<option value="${esc(p.id)}">${esc(p.name)}${awayOn(p.id, s.date) ? " (away that day)" : ""}</option>`).join("");
+  }
+  function requestCard(me) {
+    if (!me || !state.people[me]) {
+      return '<div class="card"><h3>Ask for cover</h3><p class="mut">Your login is not linked to a person on the roster, so you cannot request a swap. An admin links a login to a person.</p></div>';
+    }
+    const open = new Set(
+      Object.values(state.swaps).filter((s) => s.status === "open" && s.from === me).map((s) => `${s.date}|${s.ministry}`)
+    );
+    const slots = slotsFor(me).upcoming.filter((s) => !open.has(`${s.date}|${s.ministryKey}`));
+    if (!slots.length) {
+      return '<div class="card"><h3>Ask for cover</h3><p class="mut">You have no upcoming Sundays without an open request.</p></div>';
+    }
+    const options = slots.map((s) => {
+      const value = `${s.date}|${s.ministryKey}`;
+      return `<option value="${esc(value)}"${value === state.swapDraft ? " selected" : ""}>${formatDate(s.date)}: ${esc(s.ministry)}</option>`;
+    }).join("");
+    return `<div class="card"><h3>Ask for cover</h3><div class="mut">Pick a Sunday you cannot serve. A team leader of that ministry will choose who covers it.</div>
+  <div class="l"><select id="swslot" data-keep="1">${options}</select><input id="swnote" data-keep="1" maxlength="300" placeholder="Reason (optional)"><button class="p" id="swreq">Request swap</button></div></div>`;
+  }
+  function mineCard(me) {
+    const mine = Object.values(state.swaps).filter((s) => me !== null && s.from === me).sort(newestFirst).slice(0, 20);
+    const rows = mine.map(
+      (s) => `<div class="l">${formatDate(s.date)}: ${esc(ministryName(s))} \xB7 ${STATUS_TEXT[s.status]}${s.status === "approved" ? ` (${esc(personName2(s.cover))} covers)` : ""}${s.note ? ` \xB7 ${esc(s.note)}` : ""}${s.status === "open" ? `<button data-swcancel="${esc(s.id)}">Cancel</button>` : ""}</div>`
+    ).join("");
+    return `<div class="card"><h3>My requests</h3>${rows || '<span class="mut">No requests yet.</span>'}</div>`;
+  }
+  function decideCard() {
+    const user = currentUser();
+    const pending = Object.values(state.swaps).filter((s) => s.status === "open" && canDecideSwap(s.ministry, s.from, user)).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+    const rows = pending.map((s) => {
+      const options = coverOptions(s);
+      return `<div class="card" style="margin:8px 0"><b>${esc(personName2(s.from))}</b> asks to be covered<div class="mut">${formatDate(s.date)}: ${esc(ministryName(s))}${s.note ? ` \xB7 ${esc(s.note)}` : ""}</div>${options ? `<div class="l"><select id="swc-${esc(s.id)}" data-keep="1">${options}</select><button class="p" data-swok="${esc(s.id)}">Approve</button><button data-swno="${esc(s.id)}">Decline</button></div>` : `<div class="warn">Nobody eligible is free to cover. Make someone eligible in the Admin tab, or decline.</div><div class="l"><button data-swno="${esc(s.id)}">Decline</button></div>`}</div>`;
+    }).join("");
+    return `<div class="card" data-requires="decideSwaps"><h3>Requests to decide</h3><div class="mut">Requests for the ministries you manage. Approving moves the cover onto the roster and takes the requester off it.</div>${rows || '<p class="mut">Nothing waiting.</p>'}</div>`;
+  }
+  function swapsTab() {
+    const user = currentUser();
+    const me = user?.personId ?? null;
+    return requestCard(me) + mineCard(me) + (can("decideSwaps", user) ? decideCard() : "");
   }
 
   // src/render.ts
+  function typingInKeptField(view) {
+    const active = document.activeElement;
+    return (active instanceof HTMLInputElement || active instanceof HTMLSelectElement) && active.dataset["keep"] !== void 0 && view.contains(active);
+  }
   function render() {
     const view = $("#v");
-    if (!view || !state.ready) return;
+    if (!view || !state.ready || !state.loaded.people) return;
+    const user = currentUser();
+    if (!user) return;
+    if (!canViewTab(state.tab, user)) state.tab = "m";
+    syncNav();
+    if (typingInKeptField(view)) return;
     if (!state.cfg) {
       view.innerHTML = '<p class="mut">No configuration found yet.</p>';
       return;
     }
     let html;
     switch (state.tab) {
+      case "m":
+        html = mineTab();
+        break;
+      case "w":
+        html = swapsTab();
+        break;
+      case "p":
+        html = profileTab();
+        break;
       case "r":
         html = rosterTab();
         break;
@@ -602,6 +1224,7 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
         break;
     }
     view.innerHTML = helpBox(state.tab) + html;
+    applyRoleMask(view);
   }
 
   // src/parse.ts
@@ -633,7 +1256,32 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
       elig: strings(data["elig"])
     };
     if (data["gone"]) person.gone = true;
+    const role = data["role"];
+    if (role === "admin" || role === "leader" || role === "member") person.role = role;
+    if (Array.isArray(data["leads"])) person.leads = strings(data["leads"]);
+    if (typeof data["phone"] === "string" && data["phone"]) person.phone = data["phone"];
     return person;
+  }
+  function parseSwap(id, data) {
+    const status = data["status"];
+    return {
+      id,
+      date: str(data["date"]),
+      ministry: str(data["ministry"]),
+      from: str(data["from"]),
+      note: str(data["note"]),
+      status: status === "open" || status === "approved" || status === "declined" ? status : "cancelled",
+      cover: str(data["cover"]),
+      by: str(data["by"]),
+      ts: str(data["ts"])
+    };
+  }
+  function parseLogin(data) {
+    if (!data) return null;
+    const personId = str(data["personId"]);
+    const salt = str(data["salt"]);
+    const hash = str(data["hash"]);
+    return personId && salt && hash ? { personId, salt, hash } : null;
   }
   function parseAssignments(v) {
     if (!isRecord(v)) return null;
@@ -792,11 +1440,42 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
       await ref.update({ ministries });
     });
   }
-  async function addMinistry(name, headcount, exclusive) {
-    await saveMinistries(
-      (ms) => ms.push({ k: `m${Date.now().toString(36)}`, l: name, n: Math.max(0, headcount), x: exclusive ? 1 : 0 })
-    );
+  async function addMinistry(name, headcount, exclusive, leaderId = "") {
+    const key = `m${Date.now().toString(36)}`;
+    await saveMinistries((ms) => ms.push({ k: key, l: name, n: Math.max(0, headcount), x: exclusive ? 1 : 0 }));
     logit(`Added ministry: ${name}`);
+    if (leaderId) await addLead(leaderId, key, name);
+  }
+  function requireAccessAdmin() {
+    if (!can("manageMembers")) throw new Error("Only an admin can change roles");
+  }
+  async function addLead(id, key, label) {
+    requireAccessAdmin();
+    await withLock(requireDb().doc(`people/${id}`), async (ref) => {
+      const current = await ref.get();
+      if (!current.exists) return;
+      const person = parsePerson(id, current.data() ?? {});
+      const leads = person.leads ?? [];
+      await ref.update({ role: person.role === "admin" ? "admin" : "leader", leads: leads.includes(key) ? leads : [...leads, key] });
+    });
+    logit(`${personLabel(id)} is now a team leader of ${label}`);
+  }
+  async function setRole(id, role) {
+    requireAccessAdmin();
+    if (!isRole(role)) return;
+    const next = role;
+    await requireDb().doc(`people/${id}`).update(next === "leader" ? { role: next } : { role: next, leads: [] });
+    logit(`${personLabel(id)} is now ${ROLE_DEFINITIONS[next].label}`);
+  }
+  async function setLeads(id, key, leads) {
+    requireAccessAdmin();
+    await withLock(requireDb().doc(`people/${id}`), async (ref) => {
+      const current = await ref.get();
+      if (!current.exists) return;
+      const list = parsePerson(id, current.data() ?? {}).leads ?? [];
+      await ref.update({ leads: leads ? list.includes(key) ? list : [...list, key] : list.filter((k) => k !== key) });
+    });
+    logit(`${personLabel(id)} ${leads ? "now leads" : "no longer leads"} ${allMinistriesNow().find((m) => m.k === key)?.l ?? key}`);
   }
   async function setMinistryRemoved(key, removed) {
     await saveMinistries((ms) => {
@@ -864,11 +1543,162 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     await requireDb().doc(`away/${key}`).delete();
     logit("Removed an away entry");
   }
+  var resolveLogins = () => {
+  };
+  var loginsReady = new Promise((resolve) => {
+    resolveLogins = resolve;
+  });
+  function refreshLogins() {
+    const out = {};
+    for (const [username, doc] of Object.entries(state.logins)) {
+      const person = state.people[doc.personId];
+      if (person?.gone) continue;
+      out[username] = { username, personId: doc.personId, displayName: person?.name ?? username, salt: doc.salt, passwordHash: doc.hash };
+    }
+    setStoredLogins(out);
+  }
+  async function createLogin(personId, rawUsername, password) {
+    requireAccessAdmin();
+    const person = state.people[personId];
+    if (!person || person.gone) return "Choose a person for this login.";
+    const username = normalizeUsername(rawUsername);
+    const problem = usernameProblem(username, Object.keys(state.logins)) ?? passwordProblem(password);
+    if (problem) return problem;
+    if (Object.values(state.logins).some((l) => l.personId === personId)) return `${person.name} already has a login.`;
+    const { salt, hash } = await newCredentials(password);
+    const taken = await withLock(requireDb().doc(`logins/${username}`), async (ref) => {
+      if ((await ref.get()).exists) return true;
+      await ref.set({ personId, salt, hash });
+      return false;
+    });
+    if (taken) return "That username is taken.";
+    logit(`Created login ${username} for ${person.name}`);
+    return null;
+  }
+  async function resetLogin(username, password) {
+    requireAccessAdmin();
+    if (!state.logins[username]) return "That login no longer exists.";
+    const problem = passwordProblem(password);
+    if (problem) return problem;
+    const { salt, hash } = await newCredentials(password);
+    await requireDb().doc(`logins/${username}`).update({ salt, hash });
+    logit(`Reset the password for login ${username}`);
+    return null;
+  }
+  async function removeLogin(username) {
+    requireAccessAdmin();
+    await requireDb().doc(`logins/${username}`).delete();
+    logit(`Removed login ${username}`);
+  }
+  async function changeOwnPassword(current, next) {
+    const user = currentUser();
+    if (!user || user.kind !== "stored") return "Only logins created in the Admin tab can change their password here.";
+    if (!await verifyPassword(user.username, current)) return "Your current password is not right.";
+    const problem = passwordProblem(next);
+    if (problem) return problem;
+    if (next === current) return "Choose a password that is different from the current one.";
+    const { salt, hash } = await newCredentials(next);
+    await requireDb().doc(`logins/${user.username}`).update({ salt, hash });
+    logit(`Changed the password for login ${user.username}`);
+    return null;
+  }
+  async function updateOwnProfile(field, value) {
+    const user = currentUser();
+    if (!user || !can("updateOwnProfile", user) || !user.personId) return;
+    const person = state.people[user.personId];
+    if (!person) return;
+    const clean = value.trim().slice(0, 60);
+    if (field === "name") {
+      if (!clean || clean === person.name) return;
+      await requireDb().doc(`people/${person.id}`).update({ name: clean });
+      logit(`${person.name} renamed themselves to ${clean}`);
+    } else if (field === "phone") {
+      if (clean === (person.phone ?? "")) return;
+      await requireDb().doc(`people/${person.id}`).update({ phone: clean });
+      logit(`${person.name} updated their phone number`);
+    }
+  }
+  var ministryLabel = (date, key) => ministriesOn(date).find((m) => m.k === key)?.l ?? key;
+  async function requestSwap(date, ministry, note) {
+    const user = currentUser();
+    const me = user?.personId;
+    if (!user || !can("requestSwap", user) || !me) return "Your login is not linked to a person on the roster.";
+    const roster = state.ros[date];
+    if (!roster || date < todayIso()) return "That Sunday is not open for swaps.";
+    if (!(roster.s[ministry] ?? []).includes(me)) return "You are not serving in that ministry on that Sunday.";
+    if (Object.values(state.swaps).some((s) => s.status === "open" && s.date === date && s.ministry === ministry && s.from === me)) {
+      return "You already have an open request for that.";
+    }
+    await requireDb().collection("swaps").add({ date, ministry, from: me, note: note.trim().slice(0, 300), status: "open", cover: "", by: "", ts: (/* @__PURE__ */ new Date()).toISOString() });
+    logit(`Swap requested: ${personLabel(me)}, ${formatDate(date)}, ${ministryLabel(date, ministry)}`);
+    return null;
+  }
+  async function cancelSwap(id) {
+    const user = currentUser();
+    const swap = state.swaps[id];
+    if (!user || !swap || swap.from !== user.personId) return "You can only cancel your own requests.";
+    let result = null;
+    await withLock(requireDb().doc(`swaps/${id}`), async (ref) => {
+      const current = await ref.get();
+      if (!current.exists || parseSwap(id, current.data() ?? {}).status !== "open") {
+        result = "That request has already been dealt with.";
+        return;
+      }
+      await ref.update({ status: "cancelled" });
+    });
+    if (!result) logit(`Swap cancelled: ${personLabel(swap.from)}, ${formatDate(swap.date)}`);
+    return result;
+  }
+  async function decideSwap(id, decision, cover) {
+    const user = currentUser();
+    const swap = state.swaps[id];
+    if (!user || !swap) return "That request no longer exists.";
+    if (!canDecideSwap(swap.ministry, swap.from, user)) return "You cannot decide this request.";
+    if (decision === "approved") {
+      if (!cover || cover === swap.from) return "Choose someone else to cover.";
+      if (!state.people[cover] || state.people[cover]?.gone) return "That person is not available.";
+    }
+    const out = { error: null };
+    await withLock(requireDb().doc(`swaps/${id}`), async (swapRef) => {
+      const current = await swapRef.get();
+      const latest = current.exists ? parseSwap(id, current.data() ?? {}) : null;
+      if (!latest || latest.status !== "open") {
+        out.error = "That request has already been dealt with.";
+        return;
+      }
+      if (decision === "approved") {
+        await withLock(requireDb().doc(`rosters/${latest.date}`), async (rosterRef) => {
+          const snapshot = await rosterRef.get();
+          const roster = snapshot.exists ? parseRoster(latest.date, snapshot.data()) : null;
+          if (!roster) {
+            out.error = "That Sunday no longer exists.";
+            return;
+          }
+          const list = roster.s[latest.ministry] ?? [];
+          if (!list.includes(latest.from)) {
+            out.error = "The person is no longer on that team, so the roster was not changed.";
+            return;
+          }
+          const next = list.filter((x) => x !== latest.from);
+          if (!next.includes(cover)) next.push(cover);
+          await rosterRef.update({ s: { [latest.ministry]: next }, manual: true });
+        });
+        if (out.error) return;
+      }
+      await swapRef.update({ status: decision, cover: decision === "approved" ? cover : "", by: user.username });
+    });
+    if (!out.error) {
+      logit(
+        decision === "approved" ? `Swap approved: ${personLabel(cover)} covers ${personLabel(swap.from)}, ${formatDate(swap.date)}, ${ministryLabel(swap.date, swap.ministry)}` : `Swap declined: ${personLabel(swap.from)}, ${formatDate(swap.date)}, ${ministryLabel(swap.date, swap.ministry)}`
+      );
+    }
+    return out.error;
+  }
   var locking = false;
   var lockStop = false;
   async function autoLock() {
     const { db, user, cfg, loaded } = state;
-    if (locking || lockStop || !(loaded.config && loaded.people && loaded.rosters) || !cfg || !db) return;
+    if (locking || lockStop || !currentUser() || !(loaded.config && loaded.people && loaded.rosters) || !cfg || !db) return;
     const todo = Object.keys(state.ros).filter((d) => !state.ros[d]?.meta);
     if (todo.length === 0) return;
     locking = true;
@@ -905,7 +1735,10 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     } catch {
     }
     const db = state.db;
-    if (!db) return false;
+    if (!db) {
+      resolveLogins();
+      return false;
+    }
     try {
       state.me = await state.user?.id() ?? "";
     } catch {
@@ -923,6 +1756,8 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     db.collection("people").onSnapshot((snap) => {
       state.people = {};
       for (const doc of snap.docs) state.people[doc.id] = parsePerson(doc.id, doc.data() ?? {});
+      setAssignments(assignmentsFrom(state.people));
+      refreshLogins();
       state.loaded.people = true;
       void autoLock();
       redraw();
@@ -942,6 +1777,21 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
       for (const doc of snap.docs) state.away[doc.id] = parseAway(doc.data() ?? {});
       redraw();
     });
+    db.collection("swaps").onSnapshot((snap) => {
+      state.swaps = {};
+      for (const doc of snap.docs) state.swaps[doc.id] = parseSwap(doc.id, doc.data() ?? {});
+      redraw();
+    });
+    db.collection("logins").onSnapshot((snap) => {
+      state.logins = {};
+      for (const doc of snap.docs) {
+        const login = parseLogin(doc.data());
+        if (login) state.logins[doc.id] = login;
+      }
+      refreshLogins();
+      resolveLogins();
+      redraw();
+    });
     db.collection("history").orderBy("ts", "desc").limit(200).onSnapshot((snap) => {
       state.log = snap.docs.map((doc) => parseHistory(doc.data() ?? {}));
       void resolveNames();
@@ -959,7 +1809,7 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
   }
 
   // src/handlers.ts
-  var TABS = ["s", "r", "a", "v", "h"];
+  var TABS = ["m", "w", "s", "r", "a", "v", "p", "h"];
   var isTab = (v) => TABS.includes(v);
   function confirmed(key) {
     if (state.cf === key) {
@@ -969,6 +1819,14 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     state.cf = key;
     return false;
   }
+  async function moveIfAllowed(date, id, from, to) {
+    if (!canMoveBetween(from, to)) {
+      state.sel = null;
+      flash("Your role cannot change that ministry.");
+      return;
+    }
+    await move(date, id, from, to);
+  }
   async function onClick(e) {
     const t = e.target;
     if (!(t instanceof HTMLElement)) return;
@@ -976,6 +1834,7 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     const chip = t.closest(".chip");
     const drop = t.closest("[data-drop]");
     const ds = t.dataset;
+    let skipRender = false;
     try {
       if (ds["t"]) {
         if (isTab(ds["t"])) state.tab = ds["t"];
@@ -994,10 +1853,10 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
       else if (t.id === "pdf") await exportPdf(ds["d"] ?? "");
       else if (ds["srm"]) {
         const [key = "", ...id] = ds["srm"].split("|");
-        await move(ds["d"] ?? "", id.join("|"), key, "");
+        await moveIfAllowed(ds["d"] ?? "", id.join("|"), key, "");
       } else if (ds["sadd"]) {
         const id = valueOf(`sa-${ds["sadd"]}`);
-        if (id) await move(ds["d"] ?? "", id, "", ds["sadd"]);
+        if (id) await moveIfAllowed(ds["d"] ?? "", id, "", ds["sadd"]);
       } else if (ds["vsave"]) await saveVerse(ds["vsave"]);
       else if (ds["nsave"]) await saveNote(ds["nsave"]);
       else if (t.closest("[data-fl]")) {
@@ -1014,21 +1873,57 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
       } else if (ds["prs"]) await setPersonRemoved(ds["prs"], false);
       else if (t.id === "madd") {
         const name = valueOf("mn").trim();
-        if (name) await addMinistry(name, Math.max(0, Number(valueOf("mc")) || 1), isChecked("mx"));
+        if (name) await addMinistry(name, Math.max(0, Number(valueOf("mc")) || 1), isChecked("mx"), valueOf("ml"));
       } else if (ds["mrm"]) {
         if (confirmed(`m:${ds["mrm"]}`)) await setMinistryRemoved(ds["mrm"], true);
       } else if (ds["mrs"]) await setMinistryRemoved(ds["mrs"], false);
-      else if (chip) {
+      else if (ds["swapfor"]) {
+        state.swapDraft = ds["swapfor"];
+        state.tab = "w";
+      } else if (t.id === "swreq") {
+        const [date = "", ministry = ""] = valueOf("swslot").split("|");
+        const error = await requestSwap(date, ministry, valueOf("swnote"));
+        if (error) {
+          flash(error);
+          skipRender = true;
+        } else {
+          state.swapDraft = "";
+          flash("Swap requested. A team leader will review it.");
+        }
+      } else if (ds["swcancel"]) {
+        const error = await cancelSwap(ds["swcancel"]);
+        if (error) flash(error);
+      } else if (ds["swok"] || ds["swno"]) {
+        const id = ds["swok"] ?? ds["swno"] ?? "";
+        const error = await decideSwap(id, ds["swok"] ? "approved" : "declined", valueOf(`swc-${id}`));
+        if (error) flash(error);
+      } else if (t.id === "ics") exportMyIcs();
+      else if (t.id === "pwsave") {
+        const next = valueOf("pw-new");
+        const error = next !== valueOf("pw-new2") ? "The new passwords do not match." : await changeOwnPassword(valueOf("pw-cur"), next);
+        flash(error ?? "Password changed.");
+        skipRender = error !== null;
+      } else if (t.id === "ladd") {
+        const error = await createLogin(valueOf("lperson"), valueOf("lname"), valueOf("lpass"));
+        flash(error ?? "Login created.");
+        skipRender = error !== null;
+      } else if (ds["lreset"]) {
+        const error = await resetLogin(ds["lreset"], valueOf(`lp-${ds["lreset"]}`));
+        flash(error ?? "Password reset.");
+        skipRender = error !== null;
+      } else if (ds["lrm"]) {
+        if (confirmed(`l:${ds["lrm"]}`)) await removeLogin(ds["lrm"]);
+      } else if (chip) {
         const next = { id: chip.dataset["id"] ?? "", d: chip.dataset["d"] ?? "", k: chip.dataset["k"] ?? "" };
         const cur = state.sel;
         state.sel = cur && cur.id === next.id && cur.d === next.d && cur.k === next.k ? null : next;
       } else if (drop && state.sel && state.sel.d === drop.dataset["d"]) {
-        await move(state.sel.d, state.sel.id, state.sel.k, drop.dataset["drop"] ?? "");
+        await moveIfAllowed(state.sel.d, state.sel.id, state.sel.k, drop.dataset["drop"] ?? "");
       }
     } catch (error) {
       fail(error);
     }
-    render();
+    if (!skipRender) render();
   }
   async function onChange(e) {
     const t = e.target;
@@ -1048,6 +1943,9 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
       if (d["pf"] === "name" && t.value.trim()) await renamePerson(person, t.value.trim());
       else if (d["pf"] === "fam") await setFamily(person, Number(t.value) || 0);
       else if (d["pe"]) await setEligibility(person, d["pe"], checked);
+      else if (d["prole"]) await setRole(person, t.value);
+      else if (d["plead"]) await setLeads(person, d["plead"], checked);
+      else if (d["prof"]) await updateOwnProfile(d["prof"], t.value);
       else if (d["mf"] === "l" || d["mf"] === "n" || d["mf"] === "x") {
         await updateMinistry(d["mk"] ?? "", d["mf"], t.value, checked);
       }
@@ -1079,19 +1977,145 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
       const sel = state.sel;
       if (!target || !sel || sel.d !== target.dataset["d"]) return;
       e.preventDefault();
-      move(sel.d, sel.id, sel.k, target.dataset["drop"] ?? "").catch(fail);
+      moveIfAllowed(sel.d, sel.id, sel.k, target.dataset["drop"] ?? "").catch(fail);
     });
+  }
+
+  // src/login.ts
+  var EXPIRY_CHECK_MS = 6e4;
+  var LOGIN_ERRORS = {
+    missing: "Enter your username and password.",
+    invalid: "Incorrect username or password.",
+    unavailable: "Sign-in is not available in this browser context. Open the page over HTTPS.",
+    expired: "Your session has expired. Please sign in again."
+  };
+  function lockedMessage(until) {
+    const minutes = Math.max(1, Math.ceil((until - Date.now()) / 6e4));
+    return `Too many failed attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`;
+  }
+  function input(id) {
+    const el = document.getElementById(id);
+    return el instanceof HTMLInputElement ? el : null;
+  }
+  function setError(message) {
+    const el = document.getElementById("login-error");
+    if (el) el.textContent = message;
+  }
+  function setBusy(busy) {
+    const button = document.getElementById("login-submit");
+    if (button instanceof HTMLButtonElement) button.disabled = busy;
+  }
+  function showLogin(message = "") {
+    const login = document.getElementById("login");
+    const app = document.getElementById("app");
+    if (app) app.hidden = true;
+    if (login) login.hidden = false;
+    const password = input("login-password");
+    if (password) password.value = "";
+    setError(message);
+    input("login-username")?.focus();
+  }
+  function showApp(user) {
+    const login = document.getElementById("login");
+    const app = document.getElementById("app");
+    const who = document.getElementById("who");
+    if (who) who.textContent = `${user.displayName} \xB7 ${ROLE_DEFINITIONS[user.role].label}`;
+    if (login) login.hidden = true;
+    if (app) app.hidden = false;
+    setError("");
+  }
+  function enter(user, hooks) {
+    showApp(user);
+    hooks.onSignedIn(user);
+  }
+  async function submit(hooks) {
+    const username = input("login-username");
+    const password = input("login-password");
+    if (!username || !password) return;
+    setError("");
+    if (!username.value.trim() || !password.value) {
+      setError(LOGIN_ERRORS.missing);
+      return;
+    }
+    setBusy(true);
+    try {
+      await hooks.whenReady?.();
+      const result = await signIn(username.value, password.value);
+      if (result.ok) {
+        username.value = "";
+        password.value = "";
+        enter(result.user, hooks);
+      } else {
+        password.value = "";
+        password.focus();
+        setError(result.reason === "locked" ? lockedMessage(result.until) : LOGIN_ERRORS[result.reason]);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+  function initLogin(hooks) {
+    const form = document.getElementById("login-form");
+    if (!(form instanceof HTMLFormElement)) throw new Error("The sign-in form is missing from the page");
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void submit(hooks);
+    });
+    document.getElementById("signout")?.addEventListener("click", () => {
+      signOut();
+      showLogin();
+      hooks.onSignedOut();
+    });
+    window.setInterval(() => {
+      const app = document.getElementById("app");
+      if (app && !app.hidden && !currentUser()) {
+        showLogin(LOGIN_ERRORS.expired);
+        hooks.onSignedOut();
+      }
+    }, EXPIRY_CHECK_MS);
+    void (async () => {
+      await hooks.whenReady?.();
+      const saved = restoreSession();
+      if (saved) enter(saved, hooks);
+      else showLogin();
+    })();
   }
 
   // src/main.ts
   bindEvents();
-  void (async () => {
-    const connected = await connect(render);
-    if (!connected) {
-      const view = $("#v");
-      if (view) view.innerHTML = '<p class="mut">Sign in to claude.ai to use the roster.</p>';
+  var connection = connect(render);
+  var LOGINS_WAIT_MS = 3e3;
+  var whenReady = () => Promise.race([
+    connection.then(() => loginsReady),
+    new Promise((resolve) => {
+      setTimeout(resolve, LOGINS_WAIT_MS);
+    })
+  ]);
+  async function start() {
+    if (await connection) {
+      render();
+      void autoLock();
+      return;
     }
-  })();
+    const view = $("#v");
+    if (view) view.innerHTML = '<p class="mut">Sign in to claude.ai to use the roster.</p>';
+  }
+  initLogin({
+    whenReady,
+    onSignedIn: () => {
+      state.tab = "m";
+      state.sel = null;
+      state.cf = null;
+      state.sedit = false;
+      state.swapDraft = "";
+      syncNav();
+      void start();
+    },
+    onSignedOut: () => {
+      const view = $("#v");
+      if (view) view.innerHTML = "";
+    }
+  });
 })();
 </script>
 </body></html>

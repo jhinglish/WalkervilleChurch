@@ -66,10 +66,10 @@ function flagDetail(): string {
           ids
             .map(
               (i) =>
-                `<span${out[i] ? ' class="warn"' : ''}>${esc(nameOn(d, i))}<span class="x" data-srm="${m.k}|${esc(i)}" data-d="${d}" title="Remove">✕</span></span>`,
+                `<span${out[i] ? ' class="warn"' : ''}>${esc(nameOn(d, i))}<span class="x" data-edit-ministry="${m.k}" data-srm="${m.k}|${esc(i)}" data-d="${d}" title="Remove">✕</span></span>`,
             )
             .join(', ') || '<span class="mut">Unfilled</span>'
-        }<div class="l"><select id="sa-${m.k}"><option value="">Add…</option>${opts
+        }<div class="l" data-edit-ministry="${m.k}"><select id="sa-${m.k}"><option value="">Add…</option>${opts
           .map(
             (p) =>
               `<option value="${esc(p.id)}">${esc(p.name)}${awayOn(p.id, d) ? ' (away)' : on[p.id] ? ` (also: ${esc(on[p.id])})` : ''}</option>`,
@@ -77,7 +77,7 @@ function flagDetail(): string {
           .join('')}</select><button data-sadd="${m.k}" data-d="${d}">Add</button></div></div></div>`;
       })
       .join('') +
-    `<div class="l"><button data-regen="${d}">${state.cf === d ? 'Confirm: replace this Sunday' : 'Regenerate this Sunday'}</button></div></div>`
+    `<div class="l"><button data-requires="generateRoster" data-regen="${d}">${state.cf === d ? 'Confirm: replace this Sunday' : 'Regenerate this Sunday'}</button></div></div>`
   );
 }
 

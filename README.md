@@ -300,9 +300,9 @@ All documents are in the Artifact database.
 
 **`people/<id>`**
 ```json
-{ "name": "Jane Doe", "family": 3, "elig": ["wel", "tea", "cre"], "gone": false }
+{ "name": "Jane Doe", "family": 3, "elig": ["wel", "tea", "cre"], "gone": false, "role": "leader", "leads": ["wel"] }
 ```
-`id` is a slug of the name. `family` groups people (0 means none). `elig` lists ministry keys the person can serve in. `gone` soft-deletes.
+`id` is a slug of the name. `family` groups people (0 means none). `elig` lists ministry keys the person can serve in. `gone` soft-deletes. `role` (`admin`, `leader` or `member`) and `leads` (ministry keys a team leader manages) are optional and set from the Admin tab; see Sign-in and roles.
 
 **`rosters/<YYYY-MM-DD>`** (one per Sunday)
 ```json
@@ -442,6 +442,34 @@ WalkervilleChurch/
 ├── .gitattributes          # LF line endings; workbook treated as binary
 └── .editorconfig           # consistent editor settings
 ```
+
+## Sign-in and roles
+
+The page opens on a sign-in screen. Accounts, roles and sessions are mock and live in `src/auth.ts`; `src/login.ts` handles the form and `src/mask.ts` removes tabs and controls the signed-in role may not use.
+
+**This is an interface gate, not security.** The profiles and password hashes ship inside the page, and a session is a record in `sessionStorage` that anyone with the page open can forge. Real protection still needs claude.ai sharing and database rules (see Known issues, item 2), or a real identity provider.
+
+| Role | Can do |
+|---|---|
+| Admin / Elder (`elder`) | Everything: Admin tab, generate and regenerate, edit any ministry, notes, CSV, any away entry, decide any swap |
+| Team Leader (`leader`) | My schedule, Swaps, Serving, Roster, Away, Service record and Profile tabs; CSV; notes; move people and decide swaps only in the ministries they manage; any away entry |
+| Member (`member`) | My schedule, Swaps (own requests), Serving (read only), Away (own person only) and Profile |
+
+Everyone lands on **My schedule**: the signed-in person's upcoming Sundays, teammates and away dates. It needs the login to be linked to a person.
+
+Sessions last 24 hours. After 5 wrong passwords in a row a username is locked for 15 minutes; this only slows down someone typing into the page, because the count lives in that browser tab.
+
+**Logins.** The three demo accounts are built in and their passwords are fixed in code. On the Admin tab, *Logins* creates more: pick a person, a username (3 to 32 letters, digits, dots, dashes or underscores) and a password (8 or more characters). They are stored in `logins/<username>` as `{ personId, salt, hash }` and sign in as that person, with that person's role. An admin can reset a password or remove a login, and a person with a stored login can change their own password on the Profile tab. Removing a person from the roster also stops their login. Because the database is connected as the page opens (so the sign-in form can check these logins), the data is loaded into memory before sign-in but is not drawn or written until someone signs in.
+
+**Swaps.** A member, team leader or admin can ask for cover on one of their upcoming Sundays (Swaps tab, or *Request swap* on My schedule). Requests live in `swaps/<id>` with a status of `open`, `approved`, `declined` or `cancelled`. A team leader of that ministry, or an admin, approves by choosing a replacement (only people eligible for the ministry and not already on that team are offered), which swaps the two on the roster and marks the Sunday as hand-edited. Team leaders cannot decide their own requests.
+
+**Profile and schedule.** The Profile tab lets anyone edit their own name and phone number (`phone` on `people/<id>`). My schedule also lists past service and downloads the upcoming Sundays as a `.ics` calendar file.
+
+**Limits.** Stored password hashes are readable by anyone who can read the database, so a weak password can be cracked offline. A role only reaches someone with a login linked to their person.
+
+**Assigning roles.** On the Admin tab, *Access and team leaders* sets each person's role and, for team leaders, the ministries they manage; a new ministry can name its team leader when it is added. These are stored on the person (`role`, `leads` in `people/<id>`). A stored role overrides the demo defaults for the login linked to that person, and only for that login: the mock `elder` login is not linked to anyone, so it cannot be demoted. Demo logins are linked to person ids `demo-leader` and `demo-member`; add people with those names in the Admin tab to give them a schedule and roles.
+
+Demo passwords are in `src/test-fixtures.ts`.
 
 ## Privacy
 

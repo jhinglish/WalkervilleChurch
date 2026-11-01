@@ -19,6 +19,9 @@ export type MinistryKey = string;
 /** Boolean stored as a number in the database. */
 export type Flag01 = 0 | 1;
 
+/** What a person may do in the app (see src/auth.ts). */
+export type Role = 'admin' | 'leader' | 'member';
+
 /** One ministry in `config/main`. */
 export interface Ministry {
   k: MinistryKey;
@@ -48,6 +51,12 @@ export interface PersonDoc {
   elig: MinistryKey[];
   /** Soft delete. A removed person is not used for new Sundays. */
   gone?: boolean;
+  /** Access role set by an admin. Absent means the default for their login. Only takes effect for a login linked to this person. */
+  role?: Role;
+  /** For a team leader: the ministries they manage. */
+  leads?: MinistryKey[];
+  /** Optional contact number the person enters on their Profile tab. */
+  phone?: string;
 }
 
 /** A person as held in memory: the stored document plus its id. */
@@ -122,7 +131,35 @@ export interface RosterIssues {
 }
 
 /** Tabs in the app. */
-export type TabId = 's' | 'r' | 'a' | 'v' | 'h';
+export type TabId = 'm' | 'w' | 's' | 'r' | 'a' | 'v' | 'p' | 'h';
+
+/** Where a swap request stands. */
+export type SwapStatus = 'open' | 'approved' | 'declined' | 'cancelled';
+
+/** A `swaps/<auto-id>` document: someone asking to be covered in one ministry on one Sunday. */
+export interface SwapRequest {
+  id: string;
+  date: IsoDate;
+  ministry: MinistryKey;
+  /** The person asking to be covered. */
+  from: PersonId;
+  note: string;
+  status: SwapStatus;
+  /** Who covers, once approved. */
+  cover: PersonId | '';
+  /** Username of whoever decided it. */
+  by: string;
+  /** ISO timestamp of the request. */
+  ts: string;
+}
+
+/** A `logins/<username>` document: a sign-in created by an admin for one person. */
+export interface LoginDoc {
+  personId: PersonId;
+  salt: string;
+  /** SHA-256 (hex) of `<salt>:<password>`. */
+  hash: string;
+}
 
 /** The person currently selected for a tap-to-move. `k` is empty for "Not serving". */
 export interface Selection {

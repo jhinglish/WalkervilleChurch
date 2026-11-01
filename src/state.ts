@@ -3,10 +3,12 @@ import type {
   Config,
   HistoryEntry,
   IsoDate,
+  LoginDoc,
   Person,
   PersonId,
   Roster,
   Selection,
+  SwapRequest,
   TabId,
 } from './types';
 
@@ -24,6 +26,11 @@ export interface AppState {
   people: Record<PersonId, Person>;
   ros: Record<IsoDate, Roster>;
   away: Record<string, AwayEntry>;
+  /** Swap requests, by document id. */
+  swaps: Record<string, SwapRequest>;
+  /** Logins created in the Admin tab, by username (the document id), as stored. */
+  logins: Record<string, LoginDoc>;
+  /** The change log, newest first. */
   log: HistoryEntry[];
   /** Display names for ids in the change log. */
   names: Record<string, string>;
@@ -47,6 +54,8 @@ export interface AppState {
   nd: IsoDate | '';
   /** Sunday opened from a needs-attention flag. */
   fd: IsoDate | '';
+  /** Sunday and ministry (`<date>|<key>`) preselected on the Swaps tab. */
+  swapDraft: string;
   /** Unsaved verse (`v<date>`) and note (`<date>`) text. */
   drafts: Record<string, string>;
 }
@@ -60,11 +69,13 @@ export const state: AppState = {
   people: {},
   ros: {},
   away: {},
+  swaps: {},
+  logins: {},
   log: [],
   names: {},
   loaded: { config: false, people: false, rosters: false },
   ready: false,
-  tab: 's',
+  tab: 'm',
   sel: null,
   past: false,
   cf: null,
@@ -73,6 +84,7 @@ export const state: AppState = {
   pick: '',
   nd: '',
   fd: '',
+  swapDraft: '',
   drafts: {},
 };
 

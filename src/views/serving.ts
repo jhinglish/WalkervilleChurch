@@ -18,7 +18,7 @@ export function servingTab(): string {
   for (const m of ministries) for (const i of r.s[m.k] || []) on[i] = m.l;
   const sedit = state.sedit;
   return (
-    `<div class="l noprint"><button class="p" id="pdf" data-d="${d}">Export PDF</button><button id="sedit">${sedit ? 'Done editing' : 'Edit'}</button></div>
+    `<div class="l noprint"><button class="p" id="pdf" data-d="${d}">Export PDF</button><button id="sedit" data-requires="editRoster">${sedit ? 'Done editing' : 'Edit'}</button></div>
  <section class="card sv"><h3>${formatDate(d)}</h3>${r.verse ? `<p style="white-space:pre-wrap;font-style:italic">${esc(r.verse)}</p>` : ''}${sedit && sum.length ? `<div class="warn noprint">⚠ ${esc(sum.join(' · '))}</div>` : ''}` +
     ministries
       .map((m) => {
@@ -28,13 +28,13 @@ export function servingTab(): string {
           ids
             .map(
               (i) =>
-                `<span${out[i] && sedit ? ' class="warn"' : ''}>${esc(nameOn(d, i))}${sedit ? `<span class="x" data-srm="${m.k}|${esc(i)}" data-d="${d}" title="Remove">✕</span>` : ''}</span>`,
+                `<span${out[i] && sedit ? ' class="warn"' : ''}>${esc(nameOn(d, i))}${sedit ? `<span class="x" data-edit-ministry="${m.k}" data-srm="${m.k}|${esc(i)}" data-d="${d}" title="Remove">✕</span>` : ''}</span>`,
             )
             .join(', ') || '<span class="mut">Unfilled</span>'
         }
   ${
     sedit
-      ? `<div class="l noprint"><select id="sa-${m.k}"><option value="">Add…</option>${opts
+      ? `<div class="l noprint" data-edit-ministry="${m.k}"><select id="sa-${m.k}"><option value="">Add…</option>${opts
           .map(
             (p) =>
               `<option value="${esc(p.id)}">${esc(p.name)}${awayOn(p.id, d) ? ' (away)' : on[p.id] ? ` (also: ${esc(on[p.id])})` : ''}</option>`,
@@ -44,9 +44,9 @@ export function servingTab(): string {
   }</div></div>`;
       })
       .join('') +
-    '</section><div class="card noprint"><b>Verse for this Sunday</b><div class="mut">Shown at the top of the PDF.</div>' +
+    '</section><div class="card noprint" data-requires="editNotes"><b>Verse for this Sunday</b><div class="mut">Shown at the top of the PDF.</div>' +
     verseBox(d) +
-    '</div><div class="card noprint"><b>Notes for this Sunday</b>' +
+    '</div><div class="card noprint" data-requires="editNotes"><b>Notes for this Sunday</b>' +
     noteBox(d) +
     '</div>'
   );

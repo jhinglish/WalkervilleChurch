@@ -1,7 +1,23 @@
-import { formatDate } from './dates';
+import {
+  assignmentsFrom,
+  can,
+  canDecideSwap,
+  currentUser,
+  isRole,
+  newCredentials,
+  normalizeUsername,
+  passwordProblem,
+  ROLE_DEFINITIONS,
+  setAssignments,
+  setStoredLogins,
+  usernameProblem,
+  verifyPassword,
+} from './auth';
+import type { Role, StoredLogin } from './auth';
+import { formatDate, todayIso } from './dates';
 import { flash } from './dom';
-import { parseAway, parseConfig, parseHistory, parseMinistries, parsePerson, parseRoster } from './parse';
-import { allMinistriesNow, byDate, generateOn, nameOn, snapshotNow, windowDates } from './selectors';
+import { parseAway, parseConfig, parseHistory, parseLogin, parseMinistries, parsePerson, parseRoster, parseSwap } from './parse';
+import { allMinistriesNow, byDate, generateOn, ministriesOn, nameOn, snapshotNow, windowDates } from './selectors';
 import { state, tabId } from './state';
 import { ministriesForSunday } from './model';
 import type { IsoDate, Ministry, MinistryKey, PersonId, Roster } from './types';
@@ -155,11 +171,49 @@ async function saveMinistries(change: (ministries: Ministry[]) => void): Promise
   });
 }
 
-export async function addMinistry(name: string, headcount: number, exclusive: boolean): Promise<void> {
-  await saveMinistries((ms) =>
-    ms.push({ k: `m${Date.now().toString(36)}`, l: name, n: Math.max(0, headcount), x: exclusive ? 1 : 0 }),
-  );
+export async function addMinistry(name: string, headcount: number, exclusive: boolean, leaderId = ''): Promise<void> {
+  const key = `m${Date.now().toString(36)}`;
+  await saveMinistries((ms) => ms.push({ k: key, l: name, n: Math.max(0, headcount), x: exclusive ? 1 : 0 }));
   logit(`Added ministry: ${name}`);
+  if (leaderId) await addLead(leaderId, key, name);
+}
+
+function requireAccessAdmin(): void {
+  if (!can('manageMembers')) throw new Error('Only an admin can change roles');
+}
+
+/** Makes a person a team leader of a ministry. Someone who is already an admin stays an admin. */
+async function addLead(id: PersonId, key: MinistryKey, label: string): Promise<void> {
+  requireAccessAdmin();
+  await withLock(requireDb().doc(`people/${id}`), async (ref) => {
+    const current = await ref.get();
+    if (!current.exists) return;
+    const person = parsePerson(id, current.data() ?? {});
+    const leads = person.leads ?? [];
+    await ref.update({ role: person.role === 'admin' ? 'admin' : 'leader', leads: leads.includes(key) ? leads : [...leads, key] });
+  });
+  logit(`${personLabel(id)} is now a team leader of ${label}`);
+}
+
+/** Sets a person's access role. Moving off Team Leader clears their ministries. */
+export async function setRole(id: PersonId, role: string): Promise<void> {
+  requireAccessAdmin();
+  if (!isRole(role)) return;
+  const next: Role = role;
+  await requireDb().doc(`people/${id}`).update(next === 'leader' ? { role: next } : { role: next, leads: [] });
+  logit(`${personLabel(id)} is now ${ROLE_DEFINITIONS[next].label}`);
+}
+
+/** Ticks or unticks one ministry in a team leader's assignments. */
+export async function setLeads(id: PersonId, key: MinistryKey, leads: boolean): Promise<void> {
+  requireAccessAdmin();
+  await withLock(requireDb().doc(`people/${id}`), async (ref) => {
+    const current = await ref.get();
+    if (!current.exists) return;
+    const list = parsePerson(id, current.data() ?? {}).leads ?? [];
+    await ref.update({ leads: leads ? (list.includes(key) ? list : [...list, key]) : list.filter((k) => k !== key) });
+  });
+  logit(`${personLabel(id)} ${leads ? 'now leads' : 'no longer leads'} ${allMinistriesNow().find((m) => m.k === key)?.l ?? key}`);
 }
 
 export async function setMinistryRemoved(key: MinistryKey, removed: boolean): Promise<void> {
@@ -245,6 +299,189 @@ export async function removeAway(key: string): Promise<void> {
   logit('Removed an away entry');
 }
 
+/* ---------- logins ---------- */
+
+let resolveLogins: () => void = () => {};
+
+/** Settles once the first snapshot of the logins collection has arrived, or when there is no database. */
+export const loginsReady: Promise<void> = new Promise<void>((resolve) => {
+  resolveLogins = resolve;
+});
+
+/** Hands the stored logins, with their people's current names, to the sign-in code. */
+function refreshLogins(): void {
+  const out: Record<string, StoredLogin> = {};
+  for (const [username, doc] of Object.entries(state.logins)) {
+    const person = state.people[doc.personId];
+    if (person?.gone) continue;
+    out[username] = { username, personId: doc.personId, displayName: person?.name ?? username, salt: doc.salt, passwordHash: doc.hash };
+  }
+  setStoredLogins(out);
+}
+
+/** Creates a login for a person. Returns a message to show when it cannot, or null when it worked. */
+export async function createLogin(personId: PersonId, rawUsername: string, password: string): Promise<string | null> {
+  requireAccessAdmin();
+  const person = state.people[personId];
+  if (!person || person.gone) return 'Choose a person for this login.';
+  const username = normalizeUsername(rawUsername);
+  const problem = usernameProblem(username, Object.keys(state.logins)) ?? passwordProblem(password);
+  if (problem) return problem;
+  if (Object.values(state.logins).some((l) => l.personId === personId)) return `${person.name} already has a login.`;
+  const { salt, hash } = await newCredentials(password);
+  const taken = await withLock(requireDb().doc(`logins/${username}`), async (ref) => {
+    if ((await ref.get()).exists) return true;
+    await ref.set({ personId, salt, hash });
+    return false;
+  });
+  if (taken) return 'That username is taken.';
+  logit(`Created login ${username} for ${person.name}`);
+  return null;
+}
+
+/** Sets a new password on a stored login (an admin resetting a forgotten one). */
+export async function resetLogin(username: string, password: string): Promise<string | null> {
+  requireAccessAdmin();
+  if (!state.logins[username]) return 'That login no longer exists.';
+  const problem = passwordProblem(password);
+  if (problem) return problem;
+  const { salt, hash } = await newCredentials(password);
+  await requireDb().doc(`logins/${username}`).update({ salt, hash });
+  logit(`Reset the password for login ${username}`);
+  return null;
+}
+
+export async function removeLogin(username: string): Promise<void> {
+  requireAccessAdmin();
+  await requireDb().doc(`logins/${username}`).delete();
+  logit(`Removed login ${username}`);
+}
+
+/** Lets a signed-in stored login change its own password. Returns a message when it cannot, or null when it worked. */
+export async function changeOwnPassword(current: string, next: string): Promise<string | null> {
+  const user = currentUser();
+  if (!user || user.kind !== 'stored') return 'Only logins created in the Admin tab can change their password here.';
+  if (!(await verifyPassword(user.username, current))) return 'Your current password is not right.';
+  const problem = passwordProblem(next);
+  if (problem) return problem;
+  if (next === current) return 'Choose a password that is different from the current one.';
+  const { salt, hash } = await newCredentials(next);
+  await requireDb().doc(`logins/${user.username}`).update({ salt, hash });
+  logit(`Changed the password for login ${user.username}`);
+  return null;
+}
+
+/** Saves the signed-in person's own name or phone number. */
+export async function updateOwnProfile(field: string, value: string): Promise<void> {
+  const user = currentUser();
+  if (!user || !can('updateOwnProfile', user) || !user.personId) return;
+  const person = state.people[user.personId];
+  if (!person) return;
+  const clean = value.trim().slice(0, 60);
+  if (field === 'name') {
+    if (!clean || clean === person.name) return;
+    await requireDb().doc(`people/${person.id}`).update({ name: clean });
+    logit(`${person.name} renamed themselves to ${clean}`);
+  } else if (field === 'phone') {
+    if (clean === (person.phone ?? '')) return;
+    await requireDb().doc(`people/${person.id}`).update({ phone: clean });
+    logit(`${person.name} updated their phone number`);
+  }
+}
+
+/* ---------- swap requests ---------- */
+
+const ministryLabel = (date: IsoDate, key: MinistryKey): string => ministriesOn(date).find((m) => m.k === key)?.l ?? key;
+
+/** Asks to be covered in one ministry on one upcoming Sunday. Returns a message when it cannot, or null when it worked. */
+export async function requestSwap(date: IsoDate, ministry: MinistryKey, note: string): Promise<string | null> {
+  const user = currentUser();
+  const me = user?.personId;
+  if (!user || !can('requestSwap', user) || !me) return 'Your login is not linked to a person on the roster.';
+  const roster = state.ros[date];
+  if (!roster || date < todayIso()) return 'That Sunday is not open for swaps.';
+  if (!(roster.s[ministry] ?? []).includes(me)) return 'You are not serving in that ministry on that Sunday.';
+  if (Object.values(state.swaps).some((s) => s.status === 'open' && s.date === date && s.ministry === ministry && s.from === me)) {
+    return 'You already have an open request for that.';
+  }
+  await requireDb()
+    .collection('swaps')
+    .add({ date, ministry, from: me, note: note.trim().slice(0, 300), status: 'open', cover: '', by: '', ts: new Date().toISOString() });
+  logit(`Swap requested: ${personLabel(me)}, ${formatDate(date)}, ${ministryLabel(date, ministry)}`);
+  return null;
+}
+
+/** Withdraws the signed-in person's own open request. */
+export async function cancelSwap(id: string): Promise<string | null> {
+  const user = currentUser();
+  const swap = state.swaps[id];
+  if (!user || !swap || swap.from !== user.personId) return 'You can only cancel your own requests.';
+  let result: string | null = null;
+  await withLock(requireDb().doc(`swaps/${id}`), async (ref) => {
+    const current = await ref.get();
+    if (!current.exists || parseSwap(id, current.data() ?? {}).status !== 'open') {
+      result = 'That request has already been dealt with.';
+      return;
+    }
+    await ref.update({ status: 'cancelled' });
+  });
+  if (!result) logit(`Swap cancelled: ${personLabel(swap.from)}, ${formatDate(swap.date)}`);
+  return result;
+}
+
+/**
+ * Approves a swap, putting `cover` in the requester's place on the roster, or declines it. Only someone who can
+ * edit that ministry may decide, and never their own request unless they are an admin. Returns a message when
+ * it cannot be done, or null when it worked.
+ */
+export async function decideSwap(id: string, decision: 'approved' | 'declined', cover: PersonId): Promise<string | null> {
+  const user = currentUser();
+  const swap = state.swaps[id];
+  if (!user || !swap) return 'That request no longer exists.';
+  if (!canDecideSwap(swap.ministry, swap.from, user)) return 'You cannot decide this request.';
+  if (decision === 'approved') {
+    if (!cover || cover === swap.from) return 'Choose someone else to cover.';
+    if (!state.people[cover] || state.people[cover]?.gone) return 'That person is not available.';
+  }
+  const out: { error: string | null } = { error: null };
+  await withLock(requireDb().doc(`swaps/${id}`), async (swapRef) => {
+    const current = await swapRef.get();
+    const latest = current.exists ? parseSwap(id, current.data() ?? {}) : null;
+    if (!latest || latest.status !== 'open') {
+      out.error = 'That request has already been dealt with.';
+      return;
+    }
+    if (decision === 'approved') {
+      await withLock(requireDb().doc(`rosters/${latest.date}`), async (rosterRef) => {
+        const snapshot = await rosterRef.get();
+        const roster = snapshot.exists ? parseRoster(latest.date, snapshot.data()) : null;
+        if (!roster) {
+          out.error = 'That Sunday no longer exists.';
+          return;
+        }
+        const list = roster.s[latest.ministry] ?? [];
+        if (!list.includes(latest.from)) {
+          out.error = 'The person is no longer on that team, so the roster was not changed.';
+          return;
+        }
+        const next = list.filter((x) => x !== latest.from);
+        if (!next.includes(cover)) next.push(cover);
+        await rosterRef.update({ s: { [latest.ministry]: next }, manual: true });
+      });
+      if (out.error) return;
+    }
+    await swapRef.update({ status: decision, cover: decision === 'approved' ? cover : '', by: user.username });
+  });
+  if (!out.error) {
+    logit(
+      decision === 'approved'
+        ? `Swap approved: ${personLabel(cover)} covers ${personLabel(swap.from)}, ${formatDate(swap.date)}, ${ministryLabel(swap.date, swap.ministry)}`
+        : `Swap declined: ${personLabel(swap.from)}, ${formatDate(swap.date)}, ${ministryLabel(swap.date, swap.ministry)}`,
+    );
+  }
+  return out.error;
+}
+
 let locking = false;
 let lockStop = false;
 
@@ -255,7 +492,7 @@ let lockStop = false;
  */
 export async function autoLock(): Promise<void> {
   const { db, user, cfg, loaded } = state;
-  if (locking || lockStop || !(loaded.config && loaded.people && loaded.rosters) || !cfg || !db) return;
+  if (locking || lockStop || !currentUser() || !(loaded.config && loaded.people && loaded.rosters) || !cfg || !db) return;
   const todo = Object.keys(state.ros).filter((d) => !state.ros[d]?.meta);
   if (todo.length === 0) return;
   locking = true;
@@ -299,7 +536,10 @@ export async function connect(onChange: () => void): Promise<boolean> {
     // Leave whatever connected; the checks below handle absence.
   }
   const db = state.db;
-  if (!db) return false;
+  if (!db) {
+    resolveLogins();
+    return false;
+  }
   try {
     state.me = (await state.user?.id()) ?? '';
   } catch {
@@ -320,6 +560,8 @@ export async function connect(onChange: () => void): Promise<boolean> {
   db.collection('people').onSnapshot((snap) => {
     state.people = {};
     for (const doc of snap.docs) state.people[doc.id] = parsePerson(doc.id, doc.data() ?? {});
+    setAssignments(assignmentsFrom(state.people));
+    refreshLogins();
     state.loaded.people = true;
     void autoLock();
     redraw();
@@ -337,6 +579,21 @@ export async function connect(onChange: () => void): Promise<boolean> {
   db.collection('away').onSnapshot((snap) => {
     state.away = {};
     for (const doc of snap.docs) state.away[doc.id] = parseAway(doc.data() ?? {});
+    redraw();
+  });
+  db.collection('swaps').onSnapshot((snap) => {
+    state.swaps = {};
+    for (const doc of snap.docs) state.swaps[doc.id] = parseSwap(doc.id, doc.data() ?? {});
+    redraw();
+  });
+  db.collection('logins').onSnapshot((snap) => {
+    state.logins = {};
+    for (const doc of snap.docs) {
+      const login = parseLogin(doc.data());
+      if (login) state.logins[doc.id] = login;
+    }
+    refreshLogins();
+    resolveLogins();
     redraw();
   });
   db.collection('history')

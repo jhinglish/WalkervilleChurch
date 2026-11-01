@@ -1,4 +1,7 @@
+import { currentUser } from './auth';
 import { formatDate } from './dates';
+import { buildIcs } from './ics';
+import { slotsFor } from './schedule';
 import { allMinistriesNow, byDate, ministriesOn, nameOn, rosterAt } from './selectors';
 import { state } from './state';
 import type { IsoDate } from './types';
@@ -42,6 +45,19 @@ export async function exportPdf(date: IsoDate): Promise<void> {
     pdf.text(pdf.splitTextToSize(roster.note, 170), 20, y);
   }
   await downloads.save({ filename: `serving-${date}.pdf`, data: pdf.output('blob') });
+}
+
+/** Saves the signed-in person's upcoming Sundays as a calendar file they can import into any calendar app. */
+export function exportMyIcs(): void {
+  const personId = currentUser()?.personId;
+  if (!personId) return;
+  const events = slotsFor(personId).upcoming.map((s) => ({
+    uid: `${s.date}-${s.ministryKey}-${personId}@walkerville-roster`,
+    date: s.date,
+    summary: `Serving: ${s.ministry}`,
+    description: s.with.length ? `With ${s.with.join(', ')}` : undefined,
+  }));
+  state.downloads?.save({ filename: 'my-roster.ics', data: buildIcs(events, new Date()) }).catch(() => {});
 }
 
 /** Saves every Sunday as a CSV, including ministries that have since been removed. */

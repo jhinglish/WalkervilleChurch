@@ -7,6 +7,32 @@ export interface HelpText {
 }
 
 export const HELP: Record<TabId, HelpText> = {
+  m: {
+    intro: 'Your own roster: the Sundays you are serving and where, and your away dates. This is the first page you see when you sign in.',
+    points: [
+      'Shows only upcoming Sundays that have been generated, so it grows as the roster is extended.',
+      'If a Sunday shows “marked away”, you are on the roster for a day you flagged as unavailable. Tell a team leader so they can arrange cover.',
+      'To flag a date you cannot serve, use the Away tab.',
+      'If it says your login is not linked to a person, ask an admin to link it.',
+      'Request swap beside a Sunday asks a team leader to find cover. Download calendar (.ics) saves your upcoming Sundays for any calendar app.',
+    ],
+  },
+  w: {
+    intro: 'Ask for cover when you cannot serve, and follow your requests. Team leaders and admins also decide requests here.',
+    points: [
+      'Pick one of your upcoming Sundays and send the request. A team leader of that ministry chooses who covers it.',
+      'Cancel a request while it is still waiting. Once approved, the roster has already changed.',
+      'Team leaders and admins: Approve puts the chosen person on the roster in place of the requester. Only people eligible for that ministry and not already on the team are offered. You cannot decide your own request unless you are an admin.',
+    ],
+  },
+  p: {
+    intro: 'Your own name and phone number, and your password if your login was created in the Admin tab.',
+    points: [
+      'Name and phone save when you leave the box.',
+      'Passwords need at least 8 characters. After 5 wrong passwords in a row a username is locked for 15 minutes on this device.',
+      'The built-in demo accounts cannot change their password here.',
+    ],
+  },
   s: {
     intro: 'Who is serving this coming Sunday. Use this page to check the list, share it (Export PDF) or make last-minute changes.',
     points: [
@@ -54,6 +80,8 @@ export const HELP: Record<TabId, HelpText> = {
       'Add a person with the form under the people table. Remove takes someone off the lists and out of future automatic rosters. Their past service stays in the Service record, and you can bring them back from “Removed people”. If a removed person is still on a future Sunday, that Sunday shows them in red until you move them.',
       'Ministries: rename one, change how many people it needs (used only when generating automatically) or mark it exclusive (anyone serving in it can’t serve in anything else that day). Remove stops a ministry being used for new Sundays. Sundays that already exist keep showing it, with the people assigned, exactly as generated. Restore brings it back.',
       'Each Sunday keeps a locked copy of the ministry names, headcounts, exclusive settings, people names and eligibility from when it was generated, so changes here never alter existing Sundays. A new ministry only appears on an existing Sunday if you press Regenerate on it. Sundays generated before this feature existed are locked automatically the first time the page is opened by someone who can edit.',
+      'Access and team leaders: choose each person’s role (Admin / Elder, Team Leader or Member) and tick the ministries a team leader manages. A role only takes effect for a person who has a login linked to them. When adding a ministry you can pick its team leader straight away.',
+      'Logins: create a login for a person with a username and password, reset a forgotten password, or remove a login. A login signs in as its person, with that person\u2019s role.',
       'Change log (at the bottom): every change, newest first, with who made it.',
     ],
   },

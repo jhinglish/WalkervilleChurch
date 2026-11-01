@@ -22,3 +22,10 @@ export function byId(list: readonly Person[]): Record<PersonId, Person> {
 export function roster(date: string, s: Roster['s'], extra: Partial<Roster> = {}): Roster {
   return { date, s, ...extra };
 }
+
+/** Credentials of the mock accounts in auth.ts. Used only by the tests; the app itself stores salted hashes. */
+export const demoLogins = {
+  admin: { username: 'elder', password: 'Elder-Demo-2027' },
+  leader: { username: 'leader', password: 'Leader-Demo-2027' },
+  member: { username: 'member', password: 'Member-Demo-2027' },
+} as const;

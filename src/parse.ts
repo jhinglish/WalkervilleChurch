@@ -11,6 +11,8 @@ import type {
   PersonSnapshot,
   Roster,
   RosterMeta,
+  SwapRequest,
+  LoginDoc,
 } from './types';
 
 /**
@@ -53,7 +55,36 @@ export function parsePerson(id: PersonId, data: Raw): Person {
     elig: strings(data['elig']),
   };
   if (data['gone']) person.gone = true;
+  const role = data['role'];
+  if (role === 'admin' || role === 'leader' || role === 'member') person.role = role;
+  if (Array.isArray(data['leads'])) person.leads = strings(data['leads']);
+  if (typeof data['phone'] === 'string' && data['phone']) person.phone = data['phone'];
   return person;
+}
+
+/** A swap request document. An unknown status is treated as cancelled, so a bad document never grants anything. */
+export function parseSwap(id: string, data: Raw): SwapRequest {
+  const status = data['status'];
+  return {
+    id,
+    date: str(data['date']),
+    ministry: str(data['ministry']),
+    from: str(data['from']),
+    note: str(data['note']),
+    status: status === 'open' || status === 'approved' || status === 'declined' ? status : 'cancelled',
+    cover: str(data['cover']),
+    by: str(data['by']),
+    ts: str(data['ts']),
+  };
+}
+
+/** A login document, or null when it is missing a field (such a login cannot sign in). */
+export function parseLogin(data: Raw | undefined): LoginDoc | null {
+  if (!data) return null;
+  const personId = str(data['personId']);
+  const salt = str(data['salt']);
+  const hash = str(data['hash']);
+  return personId && salt && hash ? { personId, salt, hash } : null;
 }
 
 function parseAssignments(v: unknown): Assignments | null {
