@@ -27,6 +27,7 @@ export function render(): void {
   const user = currentUser();
   if (!user) return;
   if (!canViewTab(state.tab, user)) state.tab = 'm';
+  view.dataset['role'] = user.role;
   syncNav();
   if (typingInKeptField(view)) return;
   if (!state.cfg) {

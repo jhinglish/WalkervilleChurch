@@ -8,13 +8,15 @@ export interface HelpText {
 
 export const HELP: Record<TabId, HelpText> = {
   m: {
-    intro: 'Your own roster: the Sundays you are serving and where, and your away dates. This is the first page you see when you sign in.',
+    intro: 'The first page you see when you sign in. Its layout follows your role: members see their own Sundays, team leaders see the teams they lead, and admins see every team at once. It changes by itself if an admin changes your role.',
     points: [
       'Shows only upcoming Sundays that have been generated, so it grows as the roster is extended.',
       'If a Sunday shows “marked away”, you are on the roster for a day you flagged as unavailable. Tell a team leader so they can arrange cover.',
       'To flag a date you cannot serve, use the Away tab.',
       'If it says your login is not linked to a person, ask an admin to link it.',
-      'Request swap beside a Sunday asks a team leader to find cover. Download calendar (.ics) saves your upcoming Sundays for any calendar app.',
+      'Members: Mark Unavailability opens the Away tab and Request a Swap opens the Swaps tab. Request swap beside a Sunday asks a team leader to find cover. Download calendar (.ics) saves your upcoming Sundays for any calendar app.',
+      'Team leaders: the full schedule of each team you lead, a team oversight table (short-staffed Sundays, away clashes) and the swap requests waiting for your approval. Review and approve opens the Swaps tab.',
+      'Admins / Elders: a master grid of every team for the coming Sundays, with Generate Roster, Edit Rotations (Admin tab) and Override Allocations (Roster tab).',
     ],
   },
   w: {

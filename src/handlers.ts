@@ -68,6 +68,13 @@ async function onClick(e: MouseEvent): Promise<void> {
     if (ds['t']) {
       if (isTab(ds['t'])) state.tab = ds['t'];
       document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('on', b === t));
+    } else if (ds['goto']) {
+      // Action buttons on My schedule that open another tab.
+      if (isTab(ds['goto'])) {
+        state.tab = ds['goto'];
+        state.sel = null;
+        state.cf = null;
+      }
     } else if (t.id === 'gen') await genMissing();
     else if (t.id === 'past') state.past = !state.past;
     else if (t.id === 'csv') exportCsv();

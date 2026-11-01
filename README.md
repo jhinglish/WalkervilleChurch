@@ -455,7 +455,7 @@ The page opens on a sign-in screen. Accounts, roles and sessions are mock and li
 | Team Leader (`leader`) | My schedule, Swaps, Serving, Roster, Away, Service record and Profile tabs; CSV; notes; move people and decide swaps only in the ministries they manage; any away entry |
 | Member (`member`) | My schedule, Swaps (own requests), Serving (read only), Away (own person only) and Profile |
 
-Everyone lands on **My schedule**: the signed-in person's upcoming Sundays, teammates and away dates. It needs the login to be linked to a person.
+Everyone lands on **My schedule**, and its layout follows the signed-in role (`src/views/mine.ts`). Members see only their own Sundays with *Mark Unavailability* and *Request a Swap*; this needs the login to be linked to a person. Team leaders see the full schedule of each team they lead, a team oversight table and the swap requests waiting for their approval. Admins / Elders see a master grid of every team with *Generate Roster*, *Edit Rotations* (opens the Admin tab) and *Override Allocations* (opens the Roster tab). The role is read on every redraw, so an admin changing someone's role updates their screen without a refresh.
 
 Sessions last 24 hours. After 5 wrong passwords in a row a username is locked for 15 minutes; this only slows down someone typing into the page, because the count lives in that browser tab.
 

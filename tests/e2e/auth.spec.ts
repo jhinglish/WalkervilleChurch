@@ -224,7 +224,7 @@ test.describe('member', () => {
 
 test.describe('My schedule', () => {
   test('is the landing page for every role', async ({ page }) => {
-    const app = await openApp(page, olderSundaysSeed(), { landing: true });
+    const app = await openApp(page, olderSundaysSeed(), { as: 'member', landing: true });
     await expect(page.locator('nav button.on')).toHaveText('My schedule');
     await expect(app.view).toContainText('not linked to a person');
   });
