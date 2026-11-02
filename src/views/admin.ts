@@ -43,7 +43,7 @@ export function adminTab(): string {
     present
       .map((p) => {
         const role = p.role ?? 'member';
-        const login = MOCK_USERS.find((u) => u.personId === p.id)?.username;
+        const login = Object.entries(state.logins).find(([, l]) => l.personId === p.id)?.[0] ?? MOCK_USERS.find((u) => u.personId === p.id)?.username;
         return `<tr><td>${K(p.name)}</td><td>${login ? K(login) : '-'}</td><td><select data-prole="1" data-pid="${K(p.id)}">${ROLES.map((r) => `<option value="${r}"${r === role ? ' selected' : ''}>${esc(ROLE_DEFINITIONS[r].label)}</option>`).join('')}</select></td>${active.map((m) => `<td><input type="checkbox" data-plead="${K(m.k)}" data-pid="${K(p.id)}"${(p.leads ?? []).includes(m.k) ? ' checked' : ''}${role === 'leader' ? '' : ' disabled'}></td>`).join('')}</tr>`;
       })
       .join('') +
@@ -72,13 +72,16 @@ function loginsCard(present: Person[]): string {
       const login = state.logins[username];
       if (!login) return '';
       const confirming = state.cf === `l:${username}`;
-      return `<tr><td>${K(username)}</td><td>${K(state.people[login.personId]?.name ?? login.personId)}</td><td>${K(roleOf(login.personId))}</td><td><input type="password" id="lp-${K(username)}" data-keep="1" autocomplete="new-password" placeholder="New password"><button data-lreset="${K(username)}">Reset password</button><button data-lrm="${K(username)}">${confirming ? 'Confirm remove' : 'Remove'}</button></td></tr>`;
+      return `<tr><td>${K(username)}</td><td>${K(state.people[login.personId]?.name ?? login.personId)}</td><td>${K(roleOf(login.personId))}</td><td>${login.temp ? '<span class="mut">Temporary password, not yet changed</span> ' : ''}<button data-lreset="${K(username)}">Reset password</button><button data-lrm="${K(username)}">${confirming ? 'Confirm remove' : 'Remove'}</button></td></tr>`;
     })
     .join('');
   const free = present.filter((p) => !withLogin.has(p.id));
-  return `<div class="card"><h3>Logins</h3><div class="mut">A login signs in as the person it is linked to, with that person's role. Give people their password in person; they can change it on their Profile tab. Usernames are 3 to 32 letters, digits, dots, dashes or underscores. Passwords need 8 or more characters.</div><div style="overflow-x:auto"><table class="rec"><tr><th>Username</th><th>Person</th><th>Role</th><th></th></tr>${demo}${stored}</table></div>${
+  const issued = state.issued
+    ? `<div class="card cue" id="lissued"><div><b>Temporary password for ${K(state.issued.username)}:</b> <code id="lissued-pw">${K(state.issued.password)}</code></div><div class="mut">Give it to them in person. It is shown only now and is not stored anywhere you can read it again. They must choose their own password the first time they sign in. If you lose it, reset the password for a new one.</div><button type="button" id="lissued-ok">Done</button></div>`
+    : '';
+  return `<div class="card"><h3>Logins</h3>${issued}<div class="mut">A login signs in as the person it is linked to, with that person's role. Creating or resetting a login makes a random temporary password for you to hand over; the person is asked to choose their own the first time they sign in. Usernames are 3 to 32 letters, digits, dots, dashes or underscores.</div><div style="overflow-x:auto"><table class="rec"><tr><th>Username</th><th>Person</th><th>Role</th><th></th></tr>${demo}${stored}</table></div>${
     free.length
-      ? `<div class="l"><select id="lperson" data-keep="1">${free.map((p) => `<option value="${K(p.id)}">${K(p.name)}</option>`).join('')}</select><input id="lname" data-keep="1" autocomplete="off" autocapitalize="none" placeholder="Username"><input id="lpass" type="password" data-keep="1" autocomplete="new-password" placeholder="Password"><button class="p" id="ladd">Create login</button></div>`
+      ? `<div class="l"><select id="lperson" data-keep="1">${free.map((p) => `<option value="${K(p.id)}">${K(p.name)}</option>`).join('')}</select><input id="lname" data-keep="1" autocomplete="off" autocapitalize="none" placeholder="Username"><button class="p" id="ladd">Create login</button></div>`
       : '<div class="mut">Everyone on the roster already has a login.</div>'
   }</div>`;
 }

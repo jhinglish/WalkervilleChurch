@@ -1,6 +1,7 @@
 import { canViewTab, currentUser } from './auth';
 import { $ } from './dom';
 import { applyRoleMask, syncNav } from './mask';
+import { requirePasswordChange } from './login';
 import { state } from './state';
 import { adminTab, changeLog } from './views/admin';
 import { awayTab } from './views/away';
@@ -26,6 +27,11 @@ export function render(): void {
   if (!view || !state.ready || !state.loaded.people) return;
   const user = currentUser();
   if (!user) return;
+  if (user.mustChangePassword) {
+    // Someone reset this login while its page was open: nothing is drawn until they choose a new password.
+    requirePasswordChange();
+    return;
+  }
   if (!canViewTab(state.tab, user)) state.tab = 'm';
   view.dataset['role'] = user.role;
   syncNav();

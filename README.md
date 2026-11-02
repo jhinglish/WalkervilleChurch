@@ -77,6 +77,7 @@ The source lives in a **private GitHub repository named `WalkervilleChurch`**. T
 3. **Seed the database** (the app does not hard-code data). `Sunday_Ministries.xlsx` in this repository is the source workbook for the people, families and eligibility. You need:
    - `config/main` with the roster start date (`start`, `YYYY-MM-DD`, first Sunday of 2027) and the `ministries` array.
    - A `people/<id>` document for each person.
+   - The first admin: a person with `role: "admin"` and a `logins/<username>` document for it. The published page has no built-in logins, so nobody can sign in until these exist (see [First admin](#first-admin)).
 4. Open the **Roster** tab and press **Generate** to create the first 3 months.
 
 People who use the tool must be able to sign in to claude.ai (organisation members or invited guests). Public-link visitors cannot read or write the database. People who only have view access can read the roster but cannot generate, edit or lock Sundays.
@@ -134,7 +135,7 @@ Three layers, each catching a different kind of mistake. `npm run verify` runs a
 
 ### Browser tests
 
-They open the built page (`dist/index.html`) in headless Chromium, with an in-memory stand-in for the claude.ai runtime (`tests/e2e/support/fake-runtime.ts`) in place of the real database. The stand-in also pins the clock to 2026-10-28, so results do not depend on the day they are run. The 41 tests cover:
+They open the browser-test build (`dist-e2e/index.html`, which keeps the demo accounts; see [Production and test builds](#production-and-test-builds)) in headless Chromium, with an in-memory stand-in for the claude.ai runtime (`tests/e2e/support/fake-runtime.ts`) in place of the real database. The stand-in also pins the clock to 2026-10-28, so results do not depend on the day they are run. The 41 tests cover:
 
 - **Startup:** the sign-in message, an empty database, and every tab loading without errors.
 - **Generation:** the three-month window with every Sunday filled and locked; never overwriting a Sunday that exists (including one created by someone else mid-click); regeneration keeping the note and verse.
@@ -143,6 +144,7 @@ They open the built page (`dist/index.html`) in headless Chromium, with an in-me
 - **Needs-attention flags:** shown only for upcoming Sundays, openable, fixable in place and closable; double-booking and exclusive clashes listed.
 - **Exports:** the PDF content and the CSV, including removed ministries.
 - **Security:** names and notes containing HTML are shown as text and never run.
+- **Production build** (`production.spec.ts`, against `dist/index.html`): none of the demo accounts is in the page or can sign in, a seeded first admin can, that admin can create the next login (which must choose its own password on first sign-in), and the only admin cannot be demoted, removed or have their login removed.
 
 ### Writing a browser test
 
@@ -235,6 +237,17 @@ Rules for changes:
 - Publish `dist/index.html` to the existing artifact (see [Deployment](#deployment-publishing-to-claudeai)).
 - The original single-file JavaScript version, and the browser and equivalence checks used to prove the port matched it, are in Git history at the tag `pre-typescript`.
 
+### Production and test builds
+
+The demo accounts (`elder`, `leader`, `member` in `src/auth.ts`) exist only for tests. `scripts/build.mjs` passes esbuild a `define` flag, `__DEMO_ACCOUNTS__`, set to `false` for the production build and `true` for the browser-test build (Vitest sets it to `true` in `vitest.config.ts`). With it false, `MOCK_USERS` folds to an empty list and the accounts are dropped from the bundle, so the published page has no built-in logins.
+
+| Build | Command | Output | Demo accounts | Used for |
+|---|---|---|---|---|
+| Production | `npm run build` | `dist/index.html` (committed) | No | Publishing, and `tests/e2e/production.spec.ts` |
+| Browser-test | `npm run build:e2e` | `dist-e2e/index.html` (git-ignored) | Yes | Every other browser test |
+
+The build script checks its own output. If the production page contains any demo account, or the test page lacks them, the build fails. If you change the demo accounts in `src/auth.ts`, update `DEMO_MARKERS` in `scripts/build.mjs` to match.
+
 ### Local development
 
 The repository is named `WalkervilleChurch`. You need Node 20 or later.
@@ -252,9 +265,10 @@ npm run verify
 | `npm run typecheck` | Strict TypeScript check of `src/` and of the browser tests (no files are emitted) |
 | `npm test` | Runs the unit tests with Vitest |
 | `npm run test:watch` | Re-runs the tests as you edit |
-| `npm run build` | Bundles `src/` into the single page `dist/index.html` that claude.ai needs |
-| `npm run check` | Type-check, unit tests and build |
-| `npm run test:e2e` | Builds, then runs the browser tests against `dist/index.html` |
+| `npm run build` | Bundles `src/` into the single page `dist/index.html` that claude.ai needs. This is the production build, without the demo accounts |
+| `npm run build:e2e` | The same page with the demo accounts kept, written to `dist-e2e/index.html` for the browser tests. Never published |
+| `npm run check` | Type-check, unit tests and the production build |
+| `npm run test:e2e` | Builds both pages, then runs the browser tests |
 | `npm run verify` | Everything: `check` plus the browser tests. Run it before every commit and before publishing |
 
 ### Branching and commits
@@ -402,7 +416,8 @@ Add real authentication and per-collection write rules at the same time (see iss
 ```
 WalkervilleChurch/
 ├── dist/
-│   └── index.html          # the built single-file app that is published (generated; commit it)
+│   └── index.html          # the production build that is published, without demo accounts (generated; commit it)
+├── dist-e2e/               # the browser-test build with the demo accounts (generated; git-ignored, never published)
 ├── src/
 │   ├── index.html          # markup and CSS, with a script placeholder for the build
 │   ├── types.ts            # data model types
@@ -424,7 +439,7 @@ WalkervilleChurch/
 │   ├── *.test.ts           # Vitest unit tests for the pure modules
 │   └── test-fixtures.ts    # shared test data
 ├── scripts/
-│   └── build.mjs           # bundles src/ into dist/index.html
+│   └── build.mjs           # bundles src/ into dist/index.html, or dist-e2e/index.html with --e2e
 ├── tests/
 │   └── e2e/
 │       ├── *.spec.ts       # Playwright browser tests of the built page
@@ -451,15 +466,19 @@ The page opens on a sign-in screen. Accounts, roles and sessions are mock and li
 
 | Role | Can do |
 |---|---|
-| Admin / Elder (`elder`) | Everything: Admin tab, generate and regenerate, edit any ministry, notes, CSV, any away entry, decide any swap |
-| Team Leader (`leader`) | My schedule, Swaps, Serving, Roster, Away, Service record and Profile tabs; CSV; notes; move people and decide swaps only in the ministries they manage; any away entry |
-| Member (`member`) | My schedule, Swaps (own requests), Serving (read only), Away (own person only) and Profile |
+| Admin / Elder | Everything: Admin tab, generate and regenerate, edit any ministry, notes, CSV, any away entry, decide any swap |
+| Team Leader | My schedule, Swaps, Serving, Roster, Away, Service record and Profile tabs; CSV; notes; move people and decide swaps only in the ministries they manage; any away entry |
+| Member | My schedule, Swaps (own requests), Serving (read only), Away (own person only) and Profile |
 
 Everyone lands on **My schedule**, and its layout follows the signed-in role (`src/views/mine.ts`). Members see only their own Sundays with *Mark Unavailability* and *Request a Swap*; this needs the login to be linked to a person. Team leaders see the full schedule of each team they lead, a team oversight table and the swap requests waiting for their approval. Admins / Elders see a master grid of every team with *Generate Roster*, *Edit Rotations* (opens the Admin tab) and *Override Allocations* (opens the Roster tab). The role is read on every redraw, so an admin changing someone's role updates their screen without a refresh.
 
 Sessions last 24 hours. After 5 wrong passwords in a row a username is locked for 15 minutes; this only slows down someone typing into the page, because the count lives in that browser tab.
 
-**Logins.** The three demo accounts are built in and their passwords are fixed in code. On the Admin tab, *Logins* creates more: pick a person, a username (3 to 32 letters, digits, dots, dashes or underscores) and a password (8 or more characters). They are stored in `logins/<username>` as `{ personId, salt, hash }` and sign in as that person, with that person's role. An admin can reset a password or remove a login, and a person with a stored login can change their own password on the Profile tab. Removing a person from the roster also stops their login. Because the database is connected as the page opens (so the sign-in form can check these logins), the data is loaded into memory before sign-in but is not drawn or written until someone signs in.
+**Logins.** The published page has no built-in accounts (see [First admin](#first-admin)). The three demo accounts (`elder`, `leader`, `member`) exist only in the unit tests and the browser-test build, with passwords fixed in `src/test-fixtures.ts`. On the Admin tab, *Logins* creates more: pick a person and a username (3 to 32 letters, digits, dots, dashes or underscores). The page makes a random temporary password (16 characters, `K7QM-X2PD-9WTE-HR4N` style), shows it to the admin once, and never stores it. The login is saved in `logins/<username>` as `{ personId, salt, hash, temp: true }` and signs in as that person, with that person's role.
+
+**First sign-in.** While `temp` is true, signing in shows a *Choose your password* screen instead of the app, and the session can do nothing else (`can()` is false for every permission). The new password must be 8 or more characters and different from the temporary one. Saving it sets `temp` to false and opens the app. A reload before choosing shows the same screen, and if an admin resets a login while its person is signed in, that person is sent to the screen at once. An admin's *Reset password* makes a new temporary password the same way (an admin cannot reset their own login; use the Profile tab). A person with a stored login can change their password later on the Profile tab. Removing a person from the roster also stops their login. Because the database is connected as the page opens (so the sign-in form can check these logins), the data is loaded into memory before sign-in but is not drawn or written until someone signs in.
+
+**Last admin.** The Admin tab refuses to demote, remove, or remove the login of the only admin who can sign in (an admin who is not removed and has a stored login), so everyone cannot be locked out by accident. Make a second admin, with a login, first (`signInAdmins` and `isLastAdmin` in `src/auth.ts`). This is a check in the page, not a database rule.
 
 **Swaps.** A member, team leader or admin can ask for cover on one of their upcoming Sundays (Swaps tab, or *Request swap* on My schedule). Requests live in `swaps/<id>` with a status of `open`, `approved`, `declined` or `cancelled`. A team leader of that ministry, or an admin, approves by choosing a replacement (only people eligible for the ministry and not already on that team are offered), which swaps the two on the roster and marks the Sunday as hand-edited. Team leaders cannot decide their own requests.
 
@@ -467,9 +486,18 @@ Sessions last 24 hours. After 5 wrong passwords in a row a username is locked fo
 
 **Limits.** Stored password hashes are readable by anyone who can read the database, so a weak password can be cracked offline. A role only reaches someone with a login linked to their person.
 
-**Assigning roles.** On the Admin tab, *Access and team leaders* sets each person's role and, for team leaders, the ministries they manage; a new ministry can name its team leader when it is added. These are stored on the person (`role`, `leads` in `people/<id>`). A stored role overrides the demo defaults for the login linked to that person, and only for that login: the mock `elder` login is not linked to anyone, so it cannot be demoted. Demo logins are linked to person ids `demo-leader` and `demo-member`; add people with those names in the Admin tab to give them a schedule and roles.
+**Assigning roles.** On the Admin tab, *Access and team leaders* sets each person's role and, for team leaders, the ministries they manage; a new ministry can name its team leader when it is added. These are stored on the person (`role`, `leads` in `people/<id>`). A stored role overrides the default role for the login linked to that person. In the test builds the mock `elder` login is not linked to anyone, so it cannot be demoted, and the demo logins are linked to person ids `demo-leader` and `demo-member`.
 
-Demo passwords are in `src/test-fixtures.ts`.
+### First admin
+
+Because the production page has no built-in logins, the first admin is created once, directly in the artifact database, as an ordinary person with the admin role and an ordinary stored login:
+
+1. `people/<id>`: set `role` to `"admin"` and `leads` to `[]` (on an existing person, merge these in; for a new person also give `name`, `family` and `elig`). The role on the person is what makes the login an admin.
+2. `logins/<username>`: `{ "personId": "<id>", "salt": "<random hex>", "hash": "<SHA-256 hex of salt:password>", "temp": true }`, the same shape the Admin tab writes. `temp: true` makes the first sign-in ask for a new password.
+
+In this project Claude writes both documents with the Artifact tool's database actions (they work on an artifact you own), using a random one-time password that is shown once. Sign in with it, choose your own password when asked, then create everyone else's logins in the Admin tab. Seed the admin **before** publishing a build without the demo accounts, or nobody can sign in.
+
+The same seeding is the way back in if every admin is locked out (a forgotten password). The Admin tab's last-admin check should stop you demoting or removing the only admin, but it is a check in the page: keep at least two admins with logins.
 
 ## Privacy
 

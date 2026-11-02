@@ -56,6 +56,8 @@ export interface AppState {
   fd: IsoDate | '';
   /** Sunday and ministry (`<date>|<key>`) preselected on the Swaps tab. */
   swapDraft: string;
+  /** The temporary password just made for a login, shown once to the admin who made it. Never stored. */
+  issued: { username: string; password: string } | null;
   /** Unsaved verse (`v<date>`) and note (`<date>`) text. */
   drafts: Record<string, string>;
 }
@@ -85,6 +87,7 @@ export const state: AppState = {
   nd: '',
   fd: '',
   swapDraft: '',
+  issued: null,
   drafts: {},
 };
 

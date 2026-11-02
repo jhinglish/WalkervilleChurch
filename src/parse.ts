@@ -84,7 +84,7 @@ export function parseLogin(data: Raw | undefined): LoginDoc | null {
   const personId = str(data['personId']);
   const salt = str(data['salt']);
   const hash = str(data['hash']);
-  return personId && salt && hash ? { personId, salt, hash } : null;
+  return personId && salt && hash ? { personId, salt, hash, temp: data['temp'] === true } : null;
 }
 
 function parseAssignments(v: unknown): Assignments | null {

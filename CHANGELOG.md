@@ -4,7 +4,22 @@ All notable changes to the Walkerville Sunday Roster are recorded here. Dates ar
 
 ## [Unreleased]
 
+### Changed
+- **The published page no longer contains the demo accounts.** `scripts/build.mjs` passes esbuild a `define` flag, `__DEMO_ACCOUNTS__`, set to `false` for `npm run build` (`dist/index.html`), which folds `MOCK_USERS` to an empty list. The browser tests run against a second build with the flag `true` (`npm run build:e2e`, written to the git-ignored `dist-e2e/`), and Vitest sets it in `vitest.config.ts`. The build fails if the production page contains a demo account or the test page lacks them (`DEMO_MARKERS` in `scripts/build.mjs`). `npm run verify` and `npm run test:e2e` build both.
+- The first admin is a one-off seeded person (`role: admin`) with a stored login, created directly in the database before publishing this build. See README > Sign-in and roles > First admin.
+- Admin tab: the Login column in *Access and team leaders* now shows each person's stored login, not only the demo accounts.
+
 ### Added
+- **Random temporary passwords and a forced first-sign-in change.** Creating or resetting a login in the Admin tab now makes a random temporary password (shown once to the admin, never stored) and sets `temp: true` on `logins/<username>`. Signing in with it shows a *Choose your password* screen, and the session can do nothing else until a new, different password of 8 or more characters is saved. The Admin tab's password fields are gone. An admin cannot reset their own login.
+- **Last-admin guard.** The Admin tab refuses to demote, remove, or remove the login of the only admin who can sign in (`signInAdmins`, `isLastAdmin` in `src/auth.ts`).
+- Tests for both: unit tests in `src/auth.test.ts`, browser tests in `logins.spec.ts` and `production.spec.ts`.
+- `tests/e2e/production.spec.ts`: against the production build, no demo account is present or can sign in, a seeded first admin can, and that admin can create the next login.
+- `src/build-flags.d.ts` declares `__DEMO_ACCOUNTS__`.
+
+### Removed
+- The help line about built-in demo accounts on the Profile tab.
+
+### Added (earlier, unreleased)
 - **Role-based My schedule.** The landing tab now draws a different layout per role, re-read on every redraw so a role change or new sign-in switches it without a page refresh. Members: only their own Sundays, with Mark Unavailability and Request a Swap buttons. Team leaders: the full schedule of each team they lead, a team oversight table and swap approval cues. Admins / Elders: a master grid of all teams with Generate Roster, Edit Rotations and Override Allocations. Code in `src/views/mine.ts` (dispatcher), `schedule-member.ts`, `schedule-team.ts`, `schedule-master.ts`, `schedule-shared.ts`; `data-goto` buttons open other tabs (`src/handlers.ts`). Tests: `tests/e2e/landing.spec.ts`.
 - **Logins from the Admin tab.** Create a login for a person (username and password), reset a forgotten password or remove a login. Stored in `logins/<username>` with a random salt and a SHA-256 hash. A stored login signs in as its person, with that person's role. The database now connects as the page opens so the sign-in form can check these logins; nothing is drawn or written until someone signs in.
 - **Stronger sign-in.** Five wrong passwords in a row lock a username for 15 minutes in that browser tab, and logins with a stored password can change it on the new Profile tab.

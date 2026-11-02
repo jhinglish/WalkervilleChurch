@@ -3,7 +3,10 @@ import {
   can,
   canDecideSwap,
   currentUser,
+  generatePassword,
+  isLastAdmin,
   isRole,
+  LAST_ADMIN_MESSAGE,
   newCredentials,
   normalizeUsername,
   passwordProblem,
@@ -195,13 +198,15 @@ async function addLead(id: PersonId, key: MinistryKey, label: string): Promise<v
   logit(`${personLabel(id)} is now a team leader of ${label}`);
 }
 
-/** Sets a person's access role. Moving off Team Leader clears their ministries. */
-export async function setRole(id: PersonId, role: string): Promise<void> {
+/** Sets a person's access role. Moving off Team Leader clears their ministries. Returns a message when it is refused, or null. */
+export async function setRole(id: PersonId, role: string): Promise<string | null> {
   requireAccessAdmin();
-  if (!isRole(role)) return;
+  if (!isRole(role)) return null;
   const next: Role = role;
+  if (next !== 'admin' && isLastAdmin(id, state.people, state.logins)) return LAST_ADMIN_MESSAGE;
   await requireDb().doc(`people/${id}`).update(next === 'leader' ? { role: next } : { role: next, leads: [] });
   logit(`${personLabel(id)} is now ${ROLE_DEFINITIONS[next].label}`);
+  return null;
 }
 
 /** Ticks or unticks one ministry in a team leader's assignments. */
@@ -259,9 +264,12 @@ export async function addPerson(name: string, family: number): Promise<void> {
 
 const personLabel = (id: PersonId): string => state.people[id]?.name ?? id;
 
-export async function setPersonRemoved(id: PersonId, removed: boolean): Promise<void> {
+/** Removes or restores a person. Refuses to remove the only admin who can sign in. Returns a message when refused, or null. */
+export async function setPersonRemoved(id: PersonId, removed: boolean): Promise<string | null> {
+  if (removed && isLastAdmin(id, state.people, state.logins)) return LAST_ADMIN_MESSAGE;
   await requireDb().doc(`people/${id}`).update({ gone: removed });
   logit(`${removed ? 'Removed' : 'Restored'} person: ${personLabel(id)}`);
+  return null;
 }
 
 export async function renamePerson(id: PersonId, name: string): Promise<void> {
@@ -314,47 +322,86 @@ function refreshLogins(): void {
   for (const [username, doc] of Object.entries(state.logins)) {
     const person = state.people[doc.personId];
     if (person?.gone) continue;
-    out[username] = { username, personId: doc.personId, displayName: person?.name ?? username, salt: doc.salt, passwordHash: doc.hash };
+    out[username] = {
+      username,
+      personId: doc.personId,
+      displayName: person?.name ?? username,
+      salt: doc.salt,
+      passwordHash: doc.hash,
+      temp: doc.temp === true,
+    };
   }
   setStoredLogins(out);
 }
 
-/** Creates a login for a person. Returns a message to show when it cannot, or null when it worked. */
-export async function createLogin(personId: PersonId, rawUsername: string, password: string): Promise<string | null> {
+/**
+ * Creates a login for a person with a random temporary password, which is shown once to the admin (`state.issued`)
+ * and which the person must replace the first time they sign in. Returns a message when it cannot, or null.
+ */
+export async function createLogin(personId: PersonId, rawUsername: string): Promise<string | null> {
   requireAccessAdmin();
   const person = state.people[personId];
   if (!person || person.gone) return 'Choose a person for this login.';
   const username = normalizeUsername(rawUsername);
-  const problem = usernameProblem(username, Object.keys(state.logins)) ?? passwordProblem(password);
+  const problem = usernameProblem(username, Object.keys(state.logins));
   if (problem) return problem;
   if (Object.values(state.logins).some((l) => l.personId === personId)) return `${person.name} already has a login.`;
+  const password = generatePassword();
   const { salt, hash } = await newCredentials(password);
   const taken = await withLock(requireDb().doc(`logins/${username}`), async (ref) => {
     if ((await ref.get()).exists) return true;
-    await ref.set({ personId, salt, hash });
+    await ref.set({ personId, salt, hash, temp: true });
     return false;
   });
   if (taken) return 'That username is taken.';
+  state.issued = { username, password };
   logit(`Created login ${username} for ${person.name}`);
   return null;
 }
 
-/** Sets a new password on a stored login (an admin resetting a forgotten one). */
-export async function resetLogin(username: string, password: string): Promise<string | null> {
+/**
+ * Gives a stored login a new random temporary password (an admin resetting a forgotten one), shown once to the admin.
+ * The person must replace it at their next sign-in. An admin cannot reset their own login here. Returns a message when it cannot, or null.
+ */
+export async function resetLogin(username: string): Promise<string | null> {
   requireAccessAdmin();
   if (!state.logins[username]) return 'That login no longer exists.';
-  const problem = passwordProblem(password);
-  if (problem) return problem;
+  if (currentUser()?.username === username) return 'Change your own password on the Profile tab.';
+  const password = generatePassword();
   const { salt, hash } = await newCredentials(password);
-  await requireDb().doc(`logins/${username}`).update({ salt, hash });
+  await requireDb().doc(`logins/${username}`).update({ salt, hash, temp: true });
+  state.issued = { username, password };
   logit(`Reset the password for login ${username}`);
   return null;
 }
 
-export async function removeLogin(username: string): Promise<void> {
+/** Removes a login. Refuses to remove the only admin's login. Returns a message when refused, or null. */
+export async function removeLogin(username: string): Promise<string | null> {
   requireAccessAdmin();
+  const login = state.logins[username];
+  if (login && isLastAdmin(login.personId, state.people, state.logins)) return LAST_ADMIN_MESSAGE;
   await requireDb().doc(`logins/${username}`).delete();
   logit(`Removed login ${username}`);
+  return null;
+}
+
+/**
+ * Replaces the temporary password of the signed-in login with one the person chose, which ends the first-sign-in
+ * requirement. Returns a message when it cannot, or null.
+ */
+export async function setFirstPassword(next: string): Promise<string | null> {
+  const user = currentUser();
+  const login = user ? state.logins[user.username] : undefined;
+  if (!user || user.kind !== 'stored' || !login) return 'Sign in again to set your password.';
+  const problem = passwordProblem(next);
+  if (problem) return problem;
+  if (await verifyPassword(user.username, next)) return 'Choose a password that is different from the temporary one.';
+  const { salt, hash } = await newCredentials(next);
+  await requireDb().doc(`logins/${user.username}`).update({ salt, hash, temp: false });
+  state.logins[user.username] = { ...login, salt, hash, temp: false };
+  refreshLogins();
+  logit(`Chose a new password for login ${user.username}`);
+  return null;
 }
 
 /** Lets a signed-in stored login change its own password. Returns a message when it cannot, or null when it worked. */
@@ -492,7 +539,7 @@ let lockStop = false;
  */
 export async function autoLock(): Promise<void> {
   const { db, user, cfg, loaded } = state;
-  if (locking || lockStop || !currentUser() || !(loaded.config && loaded.people && loaded.rosters) || !cfg || !db) return;
+  if (locking || lockStop || !currentUser() || currentUser()?.mustChangePassword || !(loaded.config && loaded.people && loaded.rosters) || !cfg || !db) return;
   const todo = Object.keys(state.ros).filter((d) => !state.ros[d]?.meta);
   if (todo.length === 0) return;
   locking = true;

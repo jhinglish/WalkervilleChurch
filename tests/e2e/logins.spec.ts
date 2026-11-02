@@ -10,44 +10,73 @@ async function signInWith(page: Page, username: string, password: string): Promi
   await page.locator('#login-submit').click();
 }
 
+/** Fills in and submits the "choose your password" screen. */
+async function chooseNewPassword(page: Page, first: string, second = first): Promise<void> {
+  await page.fill('#setpw-new', first);
+  await page.fill('#setpw-new2', second);
+  await page.locator('#setpw-submit').click();
+}
+
+/** The temporary password the Admin tab shows once after creating or resetting a login. */
+async function issuedPassword(page: Page): Promise<string> {
+  await expect(page.locator('#lissued-pw')).toHaveText(/^[A-Z2-9]{4}(-[A-Z2-9]{4}){3}$/);
+  return page.locator('#lissued-pw').innerText();
+}
+
 const lockedText = /Too many failed attempts\. Try again in \d+ minutes?\./;
 
 test.describe('logins created in the Admin tab', () => {
-  test('an admin creates a login, and the person can sign in with it as a member', async ({ page }) => {
+  test('an admin creates a login with a random temporary password, and the person must choose their own', async ({ page }) => {
     const app = await openApp(page, freshSeed());
     await app.tab('Admin');
     await app.idle();
     await page.selectOption('#lperson', 'ann');
     await page.fill('#lname', ' Ann.W ');
-    await page.fill('#lpass', 'Sunday-Pass-1');
     await page.locator('#ladd').click();
+    const temporary = await issuedPassword(page);
     await expect.poll(async () => (await app.paths('logins')).length).toBe(1);
 
     const doc = await app.doc('logins/ann.w');
     expect(doc['personId']).toBe('ann');
-    expect(JSON.stringify(doc)).not.toContain('Sunday-Pass-1');
+    expect(doc['temp']).toBe(true);
+    expect(JSON.stringify(doc)).not.toContain(temporary);
     expect(String(doc['hash'])).toMatch(/^[0-9a-f]{64}$/);
     await expect(app.view).toContainText('ann.w');
+    await expect(app.view).toContainText('Temporary password, not yet changed');
 
     await page.locator('#signout').click();
-    await signInWith(page, 'ann.w', 'Sunday-Pass-1');
+    await signInWith(page, 'ann.w', temporary);
+    await expect(page.locator('#setpw')).toBeVisible();
+    await expect(page.locator('#app')).toBeHidden();
+
+    await chooseNewPassword(page, 'Another-Pass-77', 'Different-Pass-1');
+    await expect(page.locator('#setpw-error')).toContainText('do not match');
+    await chooseNewPassword(page, 'short');
+    await expect(page.locator('#setpw-error')).toContainText('at least 8 characters');
+    await chooseNewPassword(page, temporary);
+    await expect(page.locator('#setpw-error')).toContainText('different from the temporary one');
+    await expect(page.locator('#app')).toBeHidden();
+
+    await chooseNewPassword(page, 'Another-Pass-77');
     await expect(page.locator('#who')).toHaveText('Ann \u00b7 Member');
     await expect(page.locator('nav button.on')).toHaveText('My schedule');
     await expect(page.locator('nav button[data-t="h"]')).toBeHidden();
+    await expect.poll(async () => (await app.doc('logins/ann.w'))['temp']).toBe(false);
+
+    await page.locator('#signout').click();
+    await signInWith(page, 'ann.w', temporary);
+    await expect(page.locator('#login-error')).toHaveText('Incorrect username or password.');
+    await signInWith(page, 'ann.w', 'Another-Pass-77');
+    await expect(page.locator('#who')).toHaveText('Ann \u00b7 Member');
+    await expect(page.locator('#setpw')).toBeHidden();
   });
 
-  test('refuses a short password, a bad username, a taken username and a second login for the same person', async ({ page }) => {
+  test('refuses a bad username, a taken username and a second login for the same person', async ({ page }) => {
     const app = await openApp(page, withSeededLogin(freshSeed()));
     await app.tab('Admin');
     await app.idle();
     await page.selectOption('#lperson', 'bob');
-    await page.fill('#lname', 'bob');
-    await page.fill('#lpass', 'short');
-    await page.locator('#ladd').click();
-    await expect(app.banner).toContainText('at least 8 characters');
-
     await page.fill('#lname', 'B!');
-    await page.fill('#lpass', 'Long-enough-1');
     await page.locator('#ladd').click();
     await expect(app.banner).toContainText('Usernames are 3 to 32');
 
@@ -59,8 +88,30 @@ test.describe('logins created in the Admin tab', () => {
     await page.locator('#ladd').click();
     await expect(app.banner).toContainText('That username is taken.');
     expect(await app.paths('logins')).toHaveLength(1);
+    await expect(page.locator('#lissued')).toHaveCount(0);
 
     await expect(page.locator('#lperson option[value="ann"]')).toHaveCount(0);
+  });
+
+  test('the temporary password is shown once, and is gone after Done or a change of tab', async ({ page }) => {
+    const app = await openApp(page, freshSeed());
+    await app.tab('Admin');
+    await app.idle();
+    await page.selectOption('#lperson', 'ann');
+    await page.fill('#lname', 'ann.w');
+    await page.locator('#ladd').click();
+    await issuedPassword(page);
+    await page.locator('#lissued-ok').click();
+    await expect(page.locator('#lissued')).toHaveCount(0);
+
+    await app.idle();
+    await page.selectOption('#lperson', 'bob');
+    await page.fill('#lname', 'bob.s');
+    await page.locator('#ladd').click();
+    await issuedPassword(page);
+    await app.tab('Roster');
+    await app.tab('Admin');
+    await expect(page.locator('#lissued')).toHaveCount(0);
   });
 
   test('a stored login survives a reload', async ({ page }) => {
@@ -82,20 +133,22 @@ test.describe('logins created in the Admin tab', () => {
     await expect(page.locator('nav button[data-t="h"]')).toBeHidden();
   });
 
-  test('an admin can reset a forgotten password, and the old one stops working', async ({ page }) => {
+  test('an admin can reset a forgotten password to a new temporary one, and the old one stops working', async ({ page }) => {
     const app = await openApp(page, withSeededLogin(freshSeed()));
     await app.tab('Admin');
     await app.idle();
-    await page.locator('[id="lp-ann.w"]').fill('Brand-New-Pass-9');
     await page.locator('[data-lreset="ann.w"]').click();
     await expect(app.banner).toContainText('Password reset.');
+    const temporary = await issuedPassword(page);
     await expect.poll(async () => (await app.doc('logins/ann.w'))['salt']).not.toBe('seedsalt');
+    expect((await app.doc('logins/ann.w'))['temp']).toBe(true);
 
     await page.locator('#signout').click();
     await signInWith(page, SEEDED_LOGIN.username, SEEDED_LOGIN.password);
     await expect(page.locator('#login-error')).toHaveText('Incorrect username or password.');
-    await signInWith(page, SEEDED_LOGIN.username, 'Brand-New-Pass-9');
-    await expect(page.locator('#who')).toHaveText('Ann \u00b7 Member');
+    await signInWith(page, SEEDED_LOGIN.username, temporary);
+    await expect(page.locator('#setpw')).toBeVisible();
+    await expect(page.locator('#app')).toBeHidden();
   });
 
   test('an admin can remove a login after confirming, and it can no longer sign in', async ({ page }) => {
@@ -118,6 +171,45 @@ test.describe('logins created in the Admin tab', () => {
     await page.locator('#signout').click();
     await signInWith(page, SEEDED_LOGIN.username, SEEDED_LOGIN.password);
     await expect(page.locator('#login-error')).toHaveText('Incorrect username or password.');
+  });
+});
+
+test.describe('the temporary password', () => {
+  const temporarySeed = () => {
+    const seed = withSeededLogin(freshSeed());
+    const login = seed[`logins/${SEEDED_LOGIN.username}`] ?? {};
+    return { ...seed, [`logins/${SEEDED_LOGIN.username}`]: { ...login, temp: true } };
+  };
+
+  test('lets the person do nothing but choose a new password, even after a reload', async ({ page }) => {
+    const app = await openLogin(page, temporarySeed());
+    await signInWith(page, SEEDED_LOGIN.username, SEEDED_LOGIN.password);
+    await expect(page.locator('#setpw')).toBeVisible();
+    await expect(page.locator('#app')).toBeHidden();
+    expect(await page.locator('#v').innerHTML()).toBe('');
+
+    await page.reload();
+    await expect(page.locator('#setpw')).toBeVisible();
+    await expect(page.locator('#app')).toBeHidden();
+    expect(app.errors).toEqual([]);
+  });
+
+  test('can be left with Sign out, and the next sign-in still asks for a new password', async ({ page }) => {
+    await openLogin(page, temporarySeed());
+    await signInWith(page, SEEDED_LOGIN.username, SEEDED_LOGIN.password);
+    await page.locator('#setpw-signout').click();
+    await expect(page.locator('#login')).toBeVisible();
+    await signInWith(page, SEEDED_LOGIN.username, SEEDED_LOGIN.password);
+    await expect(page.locator('#setpw')).toBeVisible();
+  });
+
+  test('is asked for again when an admin resets the login while the person is signed in', async ({ page }) => {
+    const app = await openLogin(page, withSeededLogin(freshSeed()));
+    await signInWith(page, SEEDED_LOGIN.username, SEEDED_LOGIN.password);
+    await expect(page.locator('#who')).toHaveText('Ann \u00b7 Member');
+    await app.elsewhere(`logins/${SEEDED_LOGIN.username}`, { temp: true });
+    await expect(page.locator('#setpw')).toBeVisible();
+    await expect(page.locator('#app')).toBeHidden();
   });
 });
 

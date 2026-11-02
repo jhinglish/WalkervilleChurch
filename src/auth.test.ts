@@ -13,9 +13,12 @@ import {
   canMoveBetween,
   canViewTab,
   currentUser,
+  generatePassword,
   hashPassword,
+  isLastAdmin,
   isPermission,
   isTabId,
+  LAST_ADMIN_MESSAGE,
   restoreSession,
   setAssignments,
   assignmentsFrom,
@@ -27,6 +30,7 @@ import {
   normalizeUsername,
   passwordProblem,
   setStoredLogins,
+  signInAdmins,
   usernameProblem,
   verifyPassword,
   signIn,
@@ -324,6 +328,78 @@ describe('stored logins', () => {
     expect(currentUser(NOW)).toBeNull();
     for (let i = 0; i < MAX_ATTEMPTS + 1; i++) await verifyPassword('jane', 'wrong');
     expect((await signIn('jane', 'Sunday-Pass-1', NOW)).ok).toBe(true);
+  });
+});
+
+describe('temporary passwords', () => {
+  it('are random, 16 characters in groups of four, without look-alike characters, and acceptable as passwords', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 50; i++) {
+      const password = generatePassword();
+      expect(password).toMatch(/^[A-HJ-NP-Z2-9]{4}(-[A-HJ-NP-Z2-9]{4}){3}$/);
+      expect(passwordProblem(password)).toBeNull();
+      seen.add(password);
+    }
+    expect(seen.size).toBe(50);
+  });
+
+  it('make a signed-in login that may do nothing until its person chooses a password', async () => {
+    const { salt, hash } = await newCredentials('Temp-Pass-1');
+    const login = { username: 'jane', personId: 'jane-doe', displayName: 'Jane Doe', salt, passwordHash: hash, temp: true };
+    setStoredLogins({ jane: login });
+    setAssignments({ 'jane-doe': { role: 'admin', leads: [] } });
+    const result = await signIn('jane', 'Temp-Pass-1', NOW);
+    expect(result.ok).toBe(true);
+    const user = currentUser(NOW);
+    expect(user?.mustChangePassword).toBe(true);
+    expect(can('viewOwnSchedule', user)).toBe(false);
+    expect(can('manageMembers', user)).toBe(false);
+    expect(canViewTab('m', user)).toBe(false);
+
+    setStoredLogins({ jane: { ...login, temp: false } });
+    const after = currentUser(NOW);
+    expect(after?.mustChangePassword).toBeUndefined();
+    expect(can('manageMembers', after)).toBe(true);
+    setAssignments({});
+  });
+
+  it('are not required of a login without the flag', async () => {
+    const { salt, hash } = await newCredentials('Own-Pass-1');
+    setStoredLogins({ jane: { username: 'jane', personId: 'jane-doe', displayName: 'Jane Doe', salt, passwordHash: hash } });
+    await signIn('jane', 'Own-Pass-1', NOW);
+    expect(currentUser(NOW)?.mustChangePassword).toBeUndefined();
+    expect(can('viewOwnSchedule')).toBe(true);
+  });
+});
+
+describe('keeping at least one admin', () => {
+  const people = {
+    ann: { id: 'ann', name: 'Ann', family: 0, elig: [], role: 'admin' as const },
+    bob: { id: 'bob', name: 'Bob', family: 0, elig: [], role: 'admin' as const },
+    cy: { id: 'cy', name: 'Cy', family: 0, elig: [], role: 'leader' as const },
+    dee: { id: 'dee', name: 'Dee', family: 0, elig: [], role: 'admin' as const, gone: true },
+  };
+  const login = (personId: string) => ({ personId });
+
+  it('counts only admins who are not removed and have a login', () => {
+    const logins = { 'ann.w': login('ann'), 'cy.w': login('cy'), 'dee.w': login('dee') };
+    expect(signInAdmins(people, logins)).toEqual(['ann']);
+    expect(signInAdmins(people, {})).toEqual([]);
+  });
+
+  it('names the only admin who can sign in as the last one', () => {
+    const logins = { 'ann.w': login('ann'), 'cy.w': login('cy') };
+    expect(isLastAdmin('ann', people, logins)).toBe(true);
+    expect(isLastAdmin('cy', people, logins)).toBe(false);
+  });
+
+  it('does not call anyone the last admin while another admin can sign in, or when none can', () => {
+    expect(isLastAdmin('ann', people, { 'ann.w': login('ann'), 'bob.w': login('bob') })).toBe(false);
+    expect(isLastAdmin('ann', people, {})).toBe(false);
+  });
+
+  it('has a message that says what to do', () => {
+    expect(LAST_ADMIN_MESSAGE).toContain('Make another person an admin');
   });
 });
 

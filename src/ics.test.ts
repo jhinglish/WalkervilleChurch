@@ -84,7 +84,13 @@ describe('parseSwap', () => {
 
 describe('parseLogin', () => {
   it('reads a complete login', () => {
-    expect(parseLogin({ personId: 'ann', salt: 's', hash: 'h' })).toEqual({ personId: 'ann', salt: 's', hash: 'h' });
+    expect(parseLogin({ personId: 'ann', salt: 's', hash: 'h' })).toEqual({ personId: 'ann', salt: 's', hash: 'h', temp: false });
+  });
+
+  it('reads the temporary-password flag, and only a true value counts', () => {
+    expect(parseLogin({ personId: 'ann', salt: 's', hash: 'h', temp: true })?.temp).toBe(true);
+    expect(parseLogin({ personId: 'ann', salt: 's', hash: 'h', temp: false })?.temp).toBe(false);
+    expect(parseLogin({ personId: 'ann', salt: 's', hash: 'h', temp: 'yes' })?.temp).toBe(false);
   });
 
   it('rejects a login that is missing anything', () => {

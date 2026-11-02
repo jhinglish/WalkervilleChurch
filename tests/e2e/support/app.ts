@@ -3,8 +3,12 @@ import { demoLogins } from '../../../src/test-fixtures';
 import { installFakeRuntime, installPdfStub } from './fake-runtime';
 import type { FakeControls, Seed } from './fake-runtime';
 
-/** The built page that every test opens. Run `npm run build` first (the `test:e2e` script does). */
-const APP_URL = new URL('../../../dist/index.html', import.meta.url).href;
+/**
+ * The browser-test build, which keeps the demo accounts (`npm run build:e2e`; the `test:e2e` script does it).
+ * The production build, dist/index.html, is what gets published and has no demo accounts.
+ */
+const APP_URL = new URL('../../../dist-e2e/index.html', import.meta.url).href;
+const PRODUCTION_URL = new URL('../../../dist/index.html', import.meta.url).href;
 
 export type TabName = 'My schedule' | 'Swaps' | 'Serving' | 'Roster' | 'Away' | 'Service record' | 'Profile' | 'Admin';
 export const TABS: readonly TabName[] = ['My schedule', 'Swaps', 'Serving', 'Roster', 'Away', 'Service record', 'Profile', 'Admin'];
@@ -169,13 +173,16 @@ export async function openApp(
   return app;
 }
 
-/** Opens the built page with the fake runtime and stops at the sign-in screen. */
-export async function openLogin(page: Page, seed: Seed, options: { canWrite?: boolean } = {}): Promise<App> {
+/**
+ * Opens the built page with the fake runtime and stops at the sign-in screen. By default this is the browser-test
+ * build; `production: true` opens the build that gets published, which has no demo accounts.
+ */
+export async function openLogin(page: Page, seed: Seed, options: { canWrite?: boolean; production?: boolean } = {}): Promise<App> {
   const app = new App(page);
   await page.route('https://cdnjs.cloudflare.com/**', (route) => route.fulfill({ contentType: 'application/javascript', body: '' }));
   await page.addInitScript(installPdfStub);
   await page.addInitScript(installFakeRuntime, { seed, canWrite: options.canWrite ?? true });
-  await page.goto(APP_URL);
+  await page.goto(options.production ? PRODUCTION_URL : APP_URL);
   return app;
 }
 

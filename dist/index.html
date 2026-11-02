@@ -28,6 +28,7 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
 [hidden]{display:none!important}
 .login{margin-top:12vh;max-width:380px}.login form{display:flex;flex-direction:column;gap:8px}.login label{font-size:13px;color:var(--mut)}.err{color:var(--bad);font-size:13px;min-height:1.3em}
 .who{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap}.badge{background:var(--chip);border-radius:14px;padding:2px 10px;font-size:13px}.chip.ro{cursor:default}
+.cta{font-size:16px;padding:10px 18px}.rec td.nm{text-align:left;white-space:normal;min-width:120px}.cue{border-color:var(--warn)}
 </style></head><body>
 <main id="login" class="login" hidden>
 <form id="login-form" class="card" novalidate>
@@ -39,6 +40,19 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
 <input id="login-password" name="password" type="password" autocomplete="current-password">
 <div id="login-error" class="err" role="alert"></div>
 <button class="p" type="submit" id="login-submit">Sign in</button>
+</form>
+</main>
+<main id="setpw" class="login" hidden>
+<form id="setpw-form" class="card" novalidate>
+<h1>Choose your password</h1>
+<div class="mut" id="setpw-for">You signed in with a temporary password. Choose your own to continue.</div>
+<label for="setpw-new">New password (8 or more characters)</label>
+<input id="setpw-new" name="new-password" type="password" autocomplete="new-password">
+<label for="setpw-new2">Repeat the new password</label>
+<input id="setpw-new2" name="new-password-repeat" type="password" autocomplete="new-password">
+<div id="setpw-error" class="err" role="alert"></div>
+<button class="p" type="submit" id="setpw-submit">Save password and continue</button>
+<button type="button" id="setpw-signout">Sign out</button>
 </form>
 </main>
 <main id="app" hidden>
@@ -59,34 +73,28 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     return document.querySelector(selector);
   }
   function valueOf(id) {
-    const el = document.getElementById(id);
+    let el = document.getElementById(id);
     return el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement ? el.value : "";
   }
   function isChecked(id) {
-    const el = document.getElementById(id);
+    let el = document.getElementById(id);
     return el instanceof HTMLInputElement && el.checked;
   }
   var flashTimer;
   function flash(message) {
-    const el = $("#fl");
-    if (!el) return;
-    el.textContent = message;
-    window.clearTimeout(flashTimer);
-    flashTimer = window.setTimeout(() => {
+    let el = $("#fl");
+    el && (el.textContent = message, window.clearTimeout(flashTimer), flashTimer = window.setTimeout(() => {
       el.textContent = "";
-    }, 6e3);
+    }, 6e3));
   }
   function fail(error) {
-    console.error(error);
-    flash(
+    console.error(error), flash(
       error instanceof Error && error.message === "busy" ? "Someone else is editing right now. Please try again in a moment." : "That change could not be saved. Please try again."
     );
   }
 
   // src/auth.ts
-  var ROLES = ["admin", "leader", "member"];
-  var isRole = (value) => value !== void 0 && ROLES.includes(value);
-  var PERMISSIONS = [
+  var ROLES = ["admin", "leader", "member"], isRole = (value) => value !== void 0 && ROLES.includes(value), PERMISSIONS = [
     "viewOwnSchedule",
     "viewServing",
     "viewFullRoster",
@@ -101,9 +109,7 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     "requestSwap",
     "decideSwaps",
     "updateOwnProfile"
-  ];
-  var isPermission = (value) => value !== void 0 && PERMISSIONS.includes(value);
-  var ROLE_DEFINITIONS = {
+  ], isPermission = (value) => value !== void 0 && PERMISSIONS.includes(value), ROLE_DEFINITIONS = {
     admin: {
       role: "admin",
       label: "Admin / Elder",
@@ -134,8 +140,7 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
       description: "Views their own schedule, requests swaps, marks their own unavailability and updates their profile.",
       permissions: ["viewOwnSchedule", "viewServing", "manageOwnAway", "requestSwap", "updateOwnProfile"]
     }
-  };
-  var TAB_REQUIRES = {
+  }, TAB_REQUIRES = {
     m: "viewOwnSchedule",
     w: "requestSwap",
     s: "viewServing",
@@ -144,44 +149,8 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     v: "viewFullRoster",
     p: "updateOwnProfile",
     h: "manageMembers"
-  };
-  var isTabId = (value) => Object.hasOwn(TAB_REQUIRES, value);
-  var MOCK_USERS = [
-    {
-      id: "u-elder",
-      username: "elder",
-      displayName: "Demo Elder",
-      role: "admin",
-      managedMinistries: [],
-      personId: null,
-      kind: "demo",
-      salt: "wv-elder-1",
-      passwordHash: "1440851cacd7b12eedcceca71057739c07f9908945e53cfc011caa1d4fd186fd"
-    },
-    {
-      id: "u-leader",
-      username: "leader",
-      displayName: "Demo Team Leader",
-      role: "leader",
-      managedMinistries: ["wel", "tea"],
-      personId: "demo-leader",
-      kind: "demo",
-      salt: "wv-leader-1",
-      passwordHash: "126154c6af9883d15f288cda99789a023d7a6afb40de4c3cccc498ee25d6e380"
-    },
-    {
-      id: "u-member",
-      username: "member",
-      displayName: "Demo Member",
-      role: "member",
-      managedMinistries: [],
-      personId: "demo-member",
-      kind: "demo",
-      salt: "wv-member-1",
-      passwordHash: "7820064a13c399dedd44d4a011cdf815a1894dee45f6d46f2715e6f8365f8c14"
-    }
-  ];
-  var storedLogins = {};
+  }, isTabId = (value) => Object.hasOwn(TAB_REQUIRES, value);
+  var MOCK_USERS = [], storedLogins = {};
   function setStoredLogins(next) {
     storedLogins = next;
   }
@@ -194,27 +163,17 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     personId: l.personId,
     kind: "stored",
     salt: l.salt,
-    passwordHash: l.passwordHash
-  });
-  var allProfiles = () => [...MOCK_USERS, ...Object.values(storedLogins).map(storedProfile)];
-  var profileByName = (username) => allProfiles().find((u) => u.username === username);
-  var profileById = (id) => allProfiles().find((u) => u.id === id);
-  var normalizeUsername = (raw) => raw.trim().toLowerCase();
-  var USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,31}$/;
-  var MIN_PASSWORD_LENGTH = 8;
-  var MAX_PASSWORD_LENGTH = 200;
+    passwordHash: l.passwordHash,
+    ...l.temp ? { temp: !0 } : {}
+  }), allProfiles = () => [...MOCK_USERS, ...Object.values(storedLogins).map(storedProfile)], profileByName = (username) => allProfiles().find((u) => u.username === username), profileById = (id) => allProfiles().find((u) => u.id === id), normalizeUsername = (raw) => raw.trim().toLowerCase(), USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,31}$/, MIN_PASSWORD_LENGTH = 8, MAX_PASSWORD_LENGTH = 200;
   function usernameProblem(name, taken) {
-    if (!USERNAME_PATTERN.test(name)) return "Usernames are 3 to 32 letters, digits, dots, dashes or underscores.";
-    if (MOCK_USERS.some((u) => u.username === name) || taken.includes(name)) return "That username is taken.";
-    return null;
+    return USERNAME_PATTERN.test(name) ? MOCK_USERS.some((u) => u.username === name) || taken.includes(name) ? "That username is taken." : null : "Usernames are 3 to 32 letters, digits, dots, dashes or underscores.";
   }
   function passwordProblem(password) {
-    if (password.length < MIN_PASSWORD_LENGTH) return `Use at least ${MIN_PASSWORD_LENGTH} characters.`;
-    if (password.length > MAX_PASSWORD_LENGTH) return "That password is too long.";
-    return null;
+    return password.length < MIN_PASSWORD_LENGTH ? `Use at least ${MIN_PASSWORD_LENGTH} characters.` : password.length > MAX_PASSWORD_LENGTH ? "That password is too long." : null;
   }
   function toPublic(profile) {
-    const assigned = profile.personId ? assignments[profile.personId] : void 0;
+    let assigned = profile.personId ? assignments[profile.personId] : void 0;
     return {
       id: profile.id,
       username: profile.username,
@@ -222,7 +181,8 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
       role: assigned?.role ?? profile.role,
       managedMinistries: assigned ? assigned.role === "leader" ? assigned.leads : [] : profile.managedMinistries,
       personId: profile.personId,
-      kind: profile.kind
+      kind: profile.kind,
+      ...profile.temp ? { mustChangePassword: !0 } : {}
     };
   }
   var assignments = {};
@@ -230,88 +190,91 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     assignments = next;
   }
   function assignmentsFrom(people) {
-    const out = {};
-    for (const person of Object.values(people)) {
-      if (person.role && !person.gone) out[person.id] = { role: person.role, leads: person.leads ?? [] };
-    }
+    let out = {};
+    for (let person of Object.values(people))
+      person.role && !person.gone && (out[person.id] = { role: person.role, leads: person.leads ?? [] });
     return out;
   }
-  var SESSION_TTL_MS = 24 * 60 * 60 * 1e3;
-  var SESSION_STORAGE_KEY = "walkerville.session";
-  var session = null;
+  var LAST_ADMIN_MESSAGE = "That would leave nobody who can sign in as an admin. Make another person an admin, and give them a login, first.";
+  function signInAdmins(people, logins) {
+    let withLogin = new Set(Object.values(logins).map((l) => l.personId));
+    return Object.values(people).filter((p) => p.role === "admin" && !p.gone && withLogin.has(p.id)).map((p) => p.id);
+  }
+  function isLastAdmin(personId, people, logins) {
+    let admins = signInAdmins(people, logins);
+    return admins.length === 1 && admins[0] === personId;
+  }
+  var SESSION_TTL_MS = 1440 * 60 * 1e3, SESSION_STORAGE_KEY = "walkerville.session", session = null;
   function store() {
     try {
-      return typeof sessionStorage === "undefined" ? null : sessionStorage;
+      return typeof sessionStorage > "u" ? null : sessionStorage;
     } catch {
       return null;
     }
   }
   function persist(value) {
     try {
-      const s = store();
+      let s = store();
       if (!s) return;
-      if (value) s.setItem(SESSION_STORAGE_KEY, JSON.stringify(value));
-      else s.removeItem(SESSION_STORAGE_KEY);
+      value ? s.setItem(SESSION_STORAGE_KEY, JSON.stringify(value)) : s.removeItem(SESSION_STORAGE_KEY);
     } catch {
     }
   }
   function parseSession(raw) {
     try {
-      const value = JSON.parse(raw);
-      if (typeof value !== "object" || value === null) return null;
-      const { token, userId, issuedAt, expiresAt } = value;
-      if (typeof token !== "string" || !/^[0-9a-f]{32}$/.test(token)) return null;
-      if (typeof userId !== "string" || typeof issuedAt !== "number" || typeof expiresAt !== "number") return null;
-      return { token, userId, issuedAt, expiresAt };
+      let value = JSON.parse(raw);
+      if (typeof value != "object" || value === null) return null;
+      let { token, userId, issuedAt, expiresAt } = value;
+      return typeof token != "string" || !/^[0-9a-f]{32}$/.test(token) || typeof userId != "string" || typeof issuedAt != "number" || typeof expiresAt != "number" ? null : { token, userId, issuedAt, expiresAt };
     } catch {
       return null;
     }
   }
   var toHex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
   function randomHex(byteCount) {
-    const bytes = new Uint8Array(byteCount);
-    crypto.getRandomValues(bytes);
-    return toHex(bytes);
+    let bytes = new Uint8Array(byteCount);
+    return crypto.getRandomValues(bytes), toHex(bytes);
   }
   async function hashPassword(password, salt) {
-    const subtle = globalThis.crypto?.subtle;
+    let subtle = globalThis.crypto?.subtle;
     if (!subtle) throw new Error("Web Crypto is not available");
-    const digest = await subtle.digest("SHA-256", new TextEncoder().encode(`${salt}:${password}`));
+    let digest = await subtle.digest("SHA-256", new TextEncoder().encode(`${salt}:${password}`));
     return toHex(new Uint8Array(digest));
   }
   async function newCredentials(password) {
-    const salt = randomHex(16);
+    let salt = randomHex(16);
     return { salt, hash: await hashPassword(password, salt) };
   }
+  var PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  function generatePassword() {
+    let bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    let chars = Array.from(bytes, (b) => PASSWORD_ALPHABET.charAt(b % PASSWORD_ALPHABET.length));
+    return [0, 4, 8, 12].map((i) => chars.slice(i, i + 4).join("")).join("-");
+  }
   async function verifyPassword(username, password) {
-    const profile = profileByName(normalizeUsername(username));
-    if (!profile) return false;
+    let profile = profileByName(normalizeUsername(username));
+    if (!profile) return !1;
     try {
       return await hashPassword(password, profile.salt) === profile.passwordHash;
     } catch {
-      return false;
+      return !1;
     }
   }
-  var MAX_ATTEMPTS = 5;
-  var LOCKOUT_MS = 15 * 60 * 1e3;
-  var ATTEMPTS_KEY = "walkerville.attempts";
-  var attempts = null;
+  var MAX_ATTEMPTS = 5, LOCKOUT_MS = 900 * 1e3, ATTEMPTS_KEY = "walkerville.attempts", attempts = null;
   function loadAttempts() {
     if (attempts) return attempts;
-    const loaded = {};
+    let loaded = {};
     try {
-      const raw = store()?.getItem(ATTEMPTS_KEY);
-      const value = raw ? JSON.parse(raw) : null;
-      if (typeof value === "object" && value !== null) {
-        for (const [name, entry] of Object.entries(value)) {
-          const { count, until } = entry ?? {};
-          if (typeof count === "number" && typeof until === "number") loaded[name] = { count, until };
+      let raw = store()?.getItem(ATTEMPTS_KEY), value = raw ? JSON.parse(raw) : null;
+      if (typeof value == "object" && value !== null)
+        for (let [name, entry] of Object.entries(value)) {
+          let { count, until } = entry ?? {};
+          typeof count == "number" && typeof until == "number" && (loaded[name] = { count, until });
         }
-      }
     } catch {
     }
-    attempts = loaded;
-    return loaded;
+    return attempts = loaded, loaded;
   }
   function saveAttempts() {
     try {
@@ -320,46 +283,32 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     }
   }
   function lockedUntil(username, now = Date.now()) {
-    const entry = loadAttempts()[username];
+    let entry = loadAttempts()[username];
     return entry && entry.until > now ? entry.until : 0;
   }
   function recordFailure(username, now) {
-    const all = loadAttempts();
-    const entry = all[username] ?? { count: 0, until: 0 };
-    const count = (entry.until && entry.until <= now ? 0 : entry.count) + 1;
+    let all = loadAttempts(), entry = all[username] ?? { count: 0, until: 0 }, count = (entry.until && entry.until <= now ? 0 : entry.count) + 1;
     if (count >= MAX_ATTEMPTS) {
-      const until = now + LOCKOUT_MS;
-      all[username] = { count: 0, until };
-      saveAttempts();
-      return until;
+      let until = now + LOCKOUT_MS;
+      return all[username] = { count: 0, until }, saveAttempts(), until;
     }
-    all[username] = { count, until: 0 };
-    saveAttempts();
-    return 0;
+    return all[username] = { count, until: 0 }, saveAttempts(), 0;
   }
   async function signIn(username, password, now = Date.now()) {
-    const name = normalizeUsername(username);
-    const lock = name ? lockedUntil(name, now) : 0;
-    if (lock) return { ok: false, reason: "locked", until: lock };
-    const profile = profileByName(name);
-    let hash;
+    let name = normalizeUsername(username), lock = name ? lockedUntil(name, now) : 0;
+    if (lock) return { ok: !1, reason: "locked", until: lock };
+    let profile = profileByName(name), hash;
     try {
       hash = await hashPassword(password, profile?.salt ?? "no-such-user");
     } catch {
-      return { ok: false, reason: "unavailable" };
+      return { ok: !1, reason: "unavailable" };
     }
     if (!profile || hash !== profile.passwordHash) {
-      const until = name ? recordFailure(name, now) : 0;
-      return until ? { ok: false, reason: "locked", until } : { ok: false, reason: "invalid" };
+      let until = name ? recordFailure(name, now) : 0;
+      return until ? { ok: !1, reason: "locked", until } : { ok: !1, reason: "invalid" };
     }
-    const all = loadAttempts();
-    if (all[name]) {
-      delete all[name];
-      saveAttempts();
-    }
-    session = { token: randomHex(16), userId: profile.id, issuedAt: now, expiresAt: now + SESSION_TTL_MS };
-    persist(session);
-    return { ok: true, user: toPublic(profile) };
+    let all = loadAttempts();
+    return all[name] && (delete all[name], saveAttempts()), session = { token: randomHex(16), userId: profile.id, issuedAt: now, expiresAt: now + SESSION_TTL_MS }, persist(session), { ok: !0, user: toPublic(profile) };
   }
   function restoreSession(now = Date.now()) {
     let raw = null;
@@ -368,71 +317,53 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     } catch {
       raw = null;
     }
-    const saved = raw ? parseSession(raw) : null;
-    const profile = saved ? profileById(saved.userId) : void 0;
-    if (!saved || !profile || saved.expiresAt <= now || saved.issuedAt > now) {
-      if (raw) persist(null);
-      return null;
-    }
-    session = saved;
-    return toPublic(profile);
+    let saved = raw ? parseSession(raw) : null, profile = saved ? profileById(saved.userId) : void 0;
+    return !saved || !profile || saved.expiresAt <= now || saved.issuedAt > now ? (raw && persist(null), null) : (session = saved, toPublic(profile));
   }
   function currentUser(now = Date.now()) {
     if (!session) return null;
-    if (session.expiresAt <= now) {
-      signOut();
-      return null;
-    }
-    const profile = profileById(session.userId);
+    if (session.expiresAt <= now)
+      return signOut(), null;
+    let profile = profileById(session.userId);
     return profile ? toPublic(profile) : null;
   }
   function signOut() {
-    session = null;
-    persist(null);
+    session = null, persist(null);
   }
   function can(permission, user = currentUser()) {
-    return user !== null && ROLE_DEFINITIONS[user.role].permissions.includes(permission);
+    return user !== null && !user.mustChangePassword && ROLE_DEFINITIONS[user.role].permissions.includes(permission);
   }
   var canViewTab = (tab, user = currentUser()) => can(TAB_REQUIRES[tab], user);
   function canEditMinistry(key, user = currentUser()) {
-    if (!user) return false;
-    if (can("editAllMinistries", user)) return true;
-    return can("editRoster", user) && user.managedMinistries.includes(key);
+    return user ? can("editAllMinistries", user) ? !0 : can("editRoster", user) && user.managedMinistries.includes(key) : !1;
   }
   function canEditAnyMinistry(user = currentUser()) {
-    if (!user) return false;
-    return can("editAllMinistries", user) || can("editRoster", user) && user.managedMinistries.length > 0;
+    return user ? can("editAllMinistries", user) || can("editRoster", user) && user.managedMinistries.length > 0 : !1;
   }
   function canMoveBetween(from, to, user = currentUser()) {
-    if (!user) return false;
-    if (can("editAllMinistries", user)) return true;
-    const keys = [from, to].filter((k) => k !== "");
+    if (!user) return !1;
+    if (can("editAllMinistries", user)) return !0;
+    let keys = [from, to].filter((k) => k !== "");
     return keys.length > 0 && keys.every((k) => canEditMinistry(k, user));
   }
   function canManageAway(personId, user = currentUser()) {
-    if (!user) return false;
-    if (can("manageAnyAway", user)) return true;
-    return can("manageOwnAway", user) && user.personId !== null && user.personId === personId;
+    return user ? can("manageAnyAway", user) ? !0 : can("manageOwnAway", user) && user.personId !== null && user.personId === personId : !1;
   }
   function canDecideSwap(ministry, requester, user = currentUser()) {
-    if (!user || !can("decideSwaps", user) || !canEditMinistry(ministry, user)) return false;
-    return can("editAllMinistries", user) || user.personId !== requester;
+    return !user || !can("decideSwaps", user) || !canEditMinistry(ministry, user) ? !1 : can("editAllMinistries", user) || user.personId !== requester;
   }
 
   // src/dates.ts
-  var DAY_MS = 864e5;
   function addDays(date, days) {
-    return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
+    return new Date(Date.parse(`${date}T00:00:00Z`) + days * 864e5).toISOString().slice(0, 10);
   }
   function todayIso(now = /* @__PURE__ */ new Date()) {
     return now.toISOString().slice(0, 10);
   }
   function sundaysInWindow(start2, today) {
-    const from = today > start2 ? today : start2;
-    const end = /* @__PURE__ */ new Date(`${from}T00:00:00Z`);
+    let from = today > start2 ? today : start2, end = /* @__PURE__ */ new Date(`${from}T00:00:00Z`);
     end.setUTCMonth(end.getUTCMonth() + 3);
-    const last = end.toISOString().slice(0, 10);
-    const sundays = [];
+    let last = end.toISOString().slice(0, 10), sundays = [];
     for (let d = start2; d <= last; d = addDays(d, 7)) sundays.push(d);
     return sundays;
   }
@@ -459,15 +390,14 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
   }
   function icsFold(line) {
     if (line.length <= 73) return [line];
-    const out = [line.slice(0, 73)];
+    let out = [line.slice(0, 73)];
     for (let i = 73; i < line.length; i += 72) out.push(` ${line.slice(i, i + 72)}`);
     return out;
   }
   var compactDate = (date) => date.replace(/-/g, "");
   function buildIcs(events, stamp) {
-    const dtstamp = stamp.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-    const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Walkerville Church Plant//Sunday Roster//EN", "CALSCALE:GREGORIAN"];
-    for (const event of events) {
+    let dtstamp = stamp.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, ""), lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Walkerville Church Plant//Sunday Roster//EN", "CALSCALE:GREGORIAN"];
+    for (let event of events)
       lines.push(
         "BEGIN:VEVENT",
         `UID:${event.uid}`,
@@ -475,12 +405,9 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
         `DTSTART;VALUE=DATE:${compactDate(event.date)}`,
         `DTEND;VALUE=DATE:${compactDate(addDays(event.date, 1))}`,
         `SUMMARY:${icsEscape(event.summary)}`
-      );
-      if (event.description) lines.push(`DESCRIPTION:${icsEscape(event.description)}`);
-      lines.push("END:VEVENT");
-    }
-    lines.push("END:VCALENDAR");
-    return `${lines.flatMap(icsFold).join("\r\n")}\r
+      ), event.description && lines.push(`DESCRIPTION:${icsEscape(event.description)}`), lines.push("END:VEVENT");
+    return lines.push("END:VCALENDAR"), `${lines.flatMap(icsFold).join(`\r
+`)}\r
 `;
   }
 
@@ -496,19 +423,14 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
   }
   function ministriesForSunday(config, roster) {
     if (!roster) return activeMinistries(config);
-    const count = (k) => (roster.s[k] ?? []).length;
-    const base = roster.meta?.m ? roster.meta.m.map((m) => ({ ...m })) : allMinistries(config).filter((m) => !m.gone || count(m.k) > 0).map((m) => ({ ...m }));
-    for (const k of Object.keys(roster.s)) {
-      if (!base.some((m) => m.k === k) && count(k) > 0) {
-        base.push({ k, l: allMinistries(config).find((m) => m.k === k)?.l || k, n: 0, x: 0 });
-      }
-    }
+    let count = (k) => (roster.s[k] ?? []).length, base = roster.meta?.m ? roster.meta.m.map((m) => ({ ...m })) : allMinistries(config).filter((m) => !m.gone || count(m.k) > 0).map((m) => ({ ...m }));
+    for (let k of Object.keys(roster.s))
+      !base.some((m) => m.k === k) && count(k) > 0 && base.push({ k, l: allMinistries(config).find((m) => m.k === k)?.l || k, n: 0, x: 0 });
     return base;
   }
   function takeSnapshot(config, people, roster) {
-    const ministries = roster ? ministriesForSunday(config, roster) : activeMinistries(config);
     return {
-      m: ministries.map((m) => ({ k: m.k, l: m.l, n: m.n, x: m.x ? 1 : 0 })),
+      m: (roster ? ministriesForSunday(config, roster) : activeMinistries(config)).map((m) => ({ k: m.k, l: m.l, n: m.n, x: m.x ? 1 : 0 })),
       p: Object.fromEntries(people.map((p) => [p.id, { n: p.name, e: [...p.elig ?? []] }]))
     };
   }
@@ -521,40 +443,26 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
 
   // src/generate.ts
   function generateAssignments(input2) {
-    const { date, ministries, away, prior } = input2;
-    const candidates = input2.people.filter((p) => !p.gone);
-    const lastIndex = /* @__PURE__ */ new Map();
-    const timesServed = /* @__PURE__ */ new Map();
+    let { date, ministries, away, prior } = input2, candidates = input2.people.filter((p) => !p.gone), lastIndex = /* @__PURE__ */ new Map(), timesServed = /* @__PURE__ */ new Map();
     prior.forEach((roster, i) => {
-      for (const m of ministries) {
-        for (const id of roster.s[m.k] ?? []) {
-          lastIndex.set(m.k + id, i);
-          timesServed.set(id, (timesServed.get(id) ?? 0) + 1);
-        }
-      }
+      for (let m of ministries)
+        for (let id of roster.s[m.k] ?? [])
+          lastIndex.set(m.k + id, i), timesServed.set(id, (timesServed.get(id) ?? 0) + 1);
     });
-    const poolSize = (m) => candidates.filter((p) => p.elig.includes(m.k)).length;
-    const order = [...ministries].sort((a, b) => (b.x ? 1 : 0) - (a.x ? 1 : 0) || poolSize(a) - poolSize(b));
-    const assignments2 = {};
-    const used = /* @__PURE__ */ new Set();
-    const inExclusive = /* @__PURE__ */ new Set();
-    for (const m of order) {
-      const slot = [];
+    let poolSize = (m) => candidates.filter((p) => p.elig.includes(m.k)).length, order = [...ministries].sort((a, b) => (b.x ? 1 : 0) - (a.x ? 1 : 0) || poolSize(a) - poolSize(b)), assignments2 = {}, used = /* @__PURE__ */ new Set(), inExclusive = /* @__PURE__ */ new Set();
+    for (let m of order) {
+      let slot = [];
       assignments2[m.k] = slot;
       for (let n = 0; n < m.n; n++) {
         let pool = candidates.filter(
           (p) => p.elig.includes(m.k) && !isAway(away, p.id, date) && !slot.includes(p.id) && !inExclusive.has(p.id)
-        );
-        const fresh = pool.filter((p) => !used.has(p.id));
-        pool = m.x ? fresh : fresh.length ? fresh : pool;
-        if (pool.length === 0) break;
-        const score = (p) => (lastIndex.get(m.k + p.id) ?? -99) - (candidates.some((q) => q.family === p.family && used.has(q.id)) ? 1.5 : 0) + (timesServed.get(p.id) ?? 0) * 0.01;
+        ), fresh = pool.filter((p) => !used.has(p.id));
+        if (pool = m.x || fresh.length ? fresh : pool, pool.length === 0) break;
+        let score = (p) => (lastIndex.get(m.k + p.id) ?? -99) - (candidates.some((q) => q.family === p.family && used.has(q.id)) ? 1.5 : 0) + (timesServed.get(p.id) ?? 0) * 0.01;
         pool.sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name));
-        const chosen = pool[0];
+        let chosen = pool[0];
         if (!chosen) break;
-        slot.push(chosen.id);
-        used.add(chosen.id);
-        if (m.x) inExclusive.add(chosen.id);
+        slot.push(chosen.id), used.add(chosen.id), m.x && inExclusive.add(chosen.id);
       }
     }
     return assignments2;
@@ -562,33 +470,20 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
 
   // src/issues.ts
   function findIssues(roster, config, people, away) {
-    const ministries = ministriesForSunday(config, roster);
-    const out = {};
-    const sum = [];
-    const placedIn = {};
-    const add = (id, text2) => {
+    let ministries = ministriesForSunday(config, roster), out = {}, sum = [], placedIn = {}, add = (id, text2) => {
       (out[id] ??= []).push(text2);
     };
-    for (const m of ministries) {
-      for (const id of roster.s[m.k] ?? []) {
+    for (let m of ministries)
+      for (let id of roster.s[m.k] ?? []) {
         (placedIn[id] ??= []).push(m);
-        const person = people[id];
-        const eligible = personEligibility(roster, people, id);
-        if (!eligible) add(id, "Unknown person");
-        else if (person?.gone) add(id, "Removed from the people list");
-        else if (!eligible.includes(m.k)) add(id, `Not marked eligible for ${m.l}`);
-        if (isAway(away, id, roster.date)) add(id, "Marked away");
+        let person = people[id], eligible = personEligibility(roster, people, id);
+        eligible ? person?.gone ? add(id, "Removed from the people list") : eligible.includes(m.k) || add(id, `Not marked eligible for ${m.l}`) : add(id, "Unknown person"), isAway(away, id, roster.date) && add(id, "Marked away");
       }
-    }
-    for (const [id, list] of Object.entries(placedIn)) {
-      if (list.length > 1) {
-        add(id, `Double-booked: ${list.map((m) => m.l).join(" + ")}`);
-        if (list.some((m) => m.x)) add(id, "Exclusive ministry clash");
-      }
-    }
-    for (const m of ministries) {
-      const placed = (roster.s[m.k] ?? []).length;
-      if (placed < m.n) sum.push(`${m.l} needs ${m.n - placed} more`);
+    for (let [id, list] of Object.entries(placedIn))
+      list.length > 1 && (add(id, `Double-booked: ${list.map((m) => m.l).join(" + ")}`), list.some((m) => m.x) && add(id, "Exclusive ministry clash"));
+    for (let m of ministries) {
+      let placed = (roster.s[m.k] ?? []).length;
+      placed < m.n && sum.push(`${m.l} needs ${m.n - placed} more`);
     }
     return { out, sum };
   }
@@ -613,118 +508,90 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     logins: {},
     log: [],
     names: {},
-    loaded: { config: false, people: false, rosters: false },
-    ready: false,
+    loaded: { config: !1, people: !1, rosters: !1 },
+    ready: !1,
     tab: "m",
     sel: null,
-    past: false,
+    past: !1,
     cf: null,
-    sedit: false,
+    sedit: !1,
     thr: 0,
     pick: "",
     nd: "",
     fd: "",
     swapDraft: "",
+    issued: null,
     drafts: {}
-  };
-  var tabId = `t${Math.random().toString(36).slice(2)}`;
+  }, tabId = `t${Math.random().toString(36).slice(2)}`;
 
   // src/selectors.ts
-  var peopleList = () => Object.values(state.people);
-  var awayList = () => Object.values(state.away);
-  var peopleByName = () => peopleList().sort((a, b) => a.name.localeCompare(b.name));
-  var allMinistriesNow = () => allMinistries(state.cfg);
-  var activeMinistriesNow = () => activeMinistries(state.cfg);
-  var rosterAt = (date) => state.ros[date] ?? { date, s: {} };
-  var ministriesOn = (date) => ministriesForSunday(state.cfg, state.ros[date]);
-  var nameOn = (date, id) => personName(state.ros[date], state.people, id);
-  var awayOn = (id, date) => isAway(awayList(), id, date);
+  var peopleList = () => Object.values(state.people), awayList = () => Object.values(state.away), peopleByName = () => peopleList().sort((a, b) => a.name.localeCompare(b.name)), allMinistriesNow = () => allMinistries(state.cfg), activeMinistriesNow = () => activeMinistries(state.cfg), rosterAt = (date) => state.ros[date] ?? { date, s: {} }, ministriesOn = (date) => ministriesForSunday(state.cfg, state.ros[date]), nameOn = (date, id) => personName(state.ros[date], state.people, id), awayOn = (id, date) => isAway(awayList(), id, date);
   function issuesOn(date) {
-    const roster = state.ros[date];
+    let roster = state.ros[date];
     return roster ? findIssues(roster, state.cfg, state.people, awayList()) : { out: {}, sum: [] };
   }
   function flagsOn(date) {
-    const issues = issuesOn(date);
+    let issues = issuesOn(date);
     return { ...issues, n: flagCount(issues) };
   }
-  var snapshotNow = (roster) => takeSnapshot(state.cfg, peopleList(), roster);
-  var windowDates = () => state.cfg ? sundaysInWindow(state.cfg.start, todayIso()) : [];
-  var generateOn = (date, prior) => generateAssignments({
+  var snapshotNow = (roster) => takeSnapshot(state.cfg, peopleList(), roster), windowDates = () => state.cfg ? sundaysInWindow(state.cfg.start, todayIso()) : [], generateOn = (date, prior) => generateAssignments({
     date,
     ministries: activeMinistries(state.cfg),
     people: peopleList(),
     away: awayList(),
     prior
-  });
-  var byDate = (a, b) => a.date < b.date ? -1 : 1;
+  }), byDate = (a, b) => a.date < b.date ? -1 : 1;
 
   // src/schedule.ts
   function slotsFor(personId) {
-    const today = todayIso();
-    const upcoming = [];
-    const past = [];
-    for (const date of Object.keys(state.ros).sort()) {
-      const roster = state.ros[date];
-      if (!roster) continue;
-      for (const m of ministriesOn(date)) {
-        const ids = roster.s[m.k] ?? [];
-        if (!ids.includes(personId)) continue;
-        (date >= today ? upcoming : past).push({
-          date,
-          ministryKey: m.k,
-          ministry: m.l,
-          with: ids.filter((i) => i !== personId).map((i) => nameOn(date, i)),
-          away: awayOn(personId, date)
-        });
-      }
+    let today = todayIso(), upcoming = [], past = [];
+    for (let date of Object.keys(state.ros).sort()) {
+      let roster = state.ros[date];
+      if (roster)
+        for (let m of ministriesOn(date)) {
+          let ids = roster.s[m.k] ?? [];
+          ids.includes(personId) && (date >= today ? upcoming : past).push({
+            date,
+            ministryKey: m.k,
+            ministry: m.l,
+            with: ids.filter((i) => i !== personId).map((i) => nameOn(date, i)),
+            away: awayOn(personId, date)
+          });
+        }
     }
     return { upcoming, past };
+  }
+  var UPCOMING_SHOWN = 8;
+  function upcomingSundays(limit = UPCOMING_SHOWN) {
+    let today = todayIso();
+    return Object.keys(state.ros).filter((d) => d >= today).sort().slice(0, limit);
+  }
+  function hasOpenSwap(personId, date, ministryKey) {
+    return Object.values(state.swaps).some((s) => s.status === "open" && s.from === personId && s.date === date && s.ministry === ministryKey);
+  }
+  function pendingSwapsFor(user) {
+    return Object.values(state.swaps).filter((s) => s.status === "open" && canDecideSwap(s.ministry, s.from, user)).sort((a, b) => a.date !== b.date ? a.date < b.date ? -1 : 1 : a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0);
   }
 
   // src/exports.ts
   async function exportPdf(date) {
-    const JsPdf = window.jspdf?.jsPDF;
-    const downloads = state.downloads;
+    let JsPdf = window.jspdf?.jsPDF, downloads = state.downloads;
     if (!JsPdf || !downloads) return;
-    const pdf = new JsPdf();
-    const roster = rosterAt(date);
-    let y = 24;
+    let pdf = new JsPdf(), roster = rosterAt(date), y = 24;
     if (roster.verse) {
-      pdf.setFontSize(12);
-      pdf.setFont(void 0, "italic");
-      const lines = pdf.splitTextToSize(roster.verse, 170);
-      pdf.text(lines, 20, y);
-      y += lines.length * 6 + 8;
-      pdf.setFont(void 0, "normal");
+      pdf.setFontSize(12), pdf.setFont(void 0, "italic");
+      let lines = pdf.splitTextToSize(roster.verse, 170);
+      pdf.text(lines, 20, y), y += lines.length * 6 + 8, pdf.setFont(void 0, "normal");
     }
-    pdf.setFontSize(18);
-    pdf.text("Walkerville Church Plant", 20, y);
-    y += 9;
-    pdf.setFontSize(13);
-    pdf.text(`Serving: ${formatDate(date)}`, 20, y);
-    y += 14;
-    for (const m of ministriesOn(date)) {
-      pdf.setFont(void 0, "bold");
-      pdf.setFontSize(12);
-      pdf.text(m.l, 20, y);
-      pdf.setFont(void 0, "normal");
-      pdf.text((roster.s[m.k] ?? []).map((id) => nameOn(date, id)).join(", ") || "-", 85, y);
-      y += 10;
-    }
-    if (roster.note) {
-      y += 4;
-      pdf.setFont(void 0, "bold");
-      pdf.text("Notes", 20, y);
-      pdf.setFont(void 0, "normal");
-      y += 8;
-      pdf.text(pdf.splitTextToSize(roster.note, 170), 20, y);
-    }
-    await downloads.save({ filename: `serving-${date}.pdf`, data: pdf.output("blob") });
+    pdf.setFontSize(18), pdf.text("Walkerville Church Plant", 20, y), y += 9, pdf.setFontSize(13), pdf.text(`Serving: ${formatDate(date)}`, 20, y), y += 14;
+    for (let m of ministriesOn(date))
+      pdf.setFont(void 0, "bold"), pdf.setFontSize(12), pdf.text(m.l, 20, y), pdf.setFont(void 0, "normal"), pdf.text((roster.s[m.k] ?? []).map((id) => nameOn(date, id)).join(", ") || "-", 85, y), y += 10;
+    roster.note && (y += 4, pdf.setFont(void 0, "bold"), pdf.text("Notes", 20, y), pdf.setFont(void 0, "normal"), y += 8, pdf.text(pdf.splitTextToSize(roster.note, 170), 20, y)), await downloads.save({ filename: `serving-${date}.pdf`, data: pdf.output("blob") });
   }
   function exportMyIcs() {
-    const personId = currentUser()?.personId;
+    let personId = currentUser()?.personId;
     if (!personId) return;
-    const events = slotsFor(personId).upcoming.map((s) => ({
+    let events = slotsFor(personId).upcoming.map((s) => ({
       uid: `${s.date}-${s.ministryKey}-${personId}@walkerville-roster`,
       date: s.date,
       summary: `Serving: ${s.ministry}`,
@@ -734,9 +601,7 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     });
   }
   function exportCsv() {
-    const rosters = Object.values(state.ros);
-    const ministries = allMinistriesNow().filter((m) => !m.gone || rosters.some((r) => (r.s[m.k] ?? []).length));
-    const rows = [
+    let rosters = Object.values(state.ros), ministries = allMinistriesNow().filter((m) => !m.gone || rosters.some((r) => (r.s[m.k] ?? []).length)), csv = [
       ["Date", ...ministries.map((m) => m.l)],
       ...rosters.sort(byDate).map((r) => [
         r.date,
@@ -744,84 +609,181 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
           (m) => (r.s[m.k] ?? []).map((id) => nameOn(r.date, id)).join(" & ")
         )
       ])
-    ];
-    const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
+    ].map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join(`
+`);
     state.downloads?.save({ filename: "sunday-roster.csv", data: csv }).catch(() => {
     });
   }
 
   // src/mask.ts
   function applyRoleMask(root) {
-    const user = currentUser();
-    for (const el of root.querySelectorAll("[data-requires]")) {
-      const permission = el.dataset["requires"];
-      if (!isPermission(permission) || !can(permission, user)) el.remove();
+    let user = currentUser();
+    for (let el of root.querySelectorAll("[data-requires]")) {
+      let permission = el.dataset.requires;
+      (!isPermission(permission) || !can(permission, user)) && el.remove();
     }
-    for (const el of root.querySelectorAll("[data-edit-ministry]")) {
-      if (!canEditMinistry(el.dataset["editMinistry"] ?? "", user)) el.remove();
-    }
-    for (const chip of root.querySelectorAll(".chip[data-id]")) {
-      const key = chip.dataset["k"] ?? "";
-      const movable = key ? canEditMinistry(key, user) : canEditAnyMinistry(user);
-      if (!movable) {
-        chip.draggable = false;
-        chip.classList.add("ro");
-        chip.setAttribute("aria-disabled", "true");
-      }
+    for (let el of root.querySelectorAll("[data-edit-ministry]"))
+      canEditMinistry(el.dataset.editMinistry ?? "", user) || el.remove();
+    for (let chip of root.querySelectorAll(".chip[data-id]")) {
+      let key = chip.dataset.k ?? "";
+      (key ? canEditMinistry(key, user) : canEditAnyMinistry(user)) || (chip.draggable = !1, chip.classList.add("ro"), chip.setAttribute("aria-disabled", "true"));
     }
   }
   function syncNav() {
-    const user = currentUser();
-    const who = document.getElementById("who");
-    if (who && user) who.textContent = `${user.displayName} \xB7 ${ROLE_DEFINITIONS[user.role].label}`;
-    for (const button of document.querySelectorAll("nav button[data-t]")) {
-      const tab = button.dataset["t"] ?? "";
-      button.hidden = !(isTabId(tab) && canViewTab(tab, user));
-      button.classList.toggle("on", tab === state.tab);
+    let user = currentUser(), who = document.getElementById("who");
+    who && user && (who.textContent = `${user.displayName} \xB7 ${ROLE_DEFINITIONS[user.role].label}`);
+    for (let button of document.querySelectorAll("nav button[data-t]")) {
+      let tab = button.dataset.t ?? "";
+      button.hidden = !(isTabId(tab) && canViewTab(tab, user)), button.classList.toggle("on", tab === state.tab);
     }
+  }
+
+  // src/login.ts
+  var EXPIRY_CHECK_MS = 6e4, LOGIN_ERRORS = {
+    missing: "Enter your username and password.",
+    invalid: "Incorrect username or password.",
+    unavailable: "Sign-in is not available in this browser context. Open the page over HTTPS.",
+    expired: "Your session has expired. Please sign in again."
+  };
+  function lockedMessage(until) {
+    let minutes = Math.max(1, Math.ceil((until - Date.now()) / 6e4));
+    return `Too many failed attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`;
+  }
+  function input(id) {
+    let el = document.getElementById(id);
+    return el instanceof HTMLInputElement ? el : null;
+  }
+  function setText(id, message) {
+    let el = document.getElementById(id);
+    el && (el.textContent = message);
+  }
+  var setError = (message) => setText("login-error", message);
+  function setBusy(id, busy) {
+    let button = document.getElementById(id);
+    button instanceof HTMLButtonElement && (button.disabled = busy);
+  }
+  function setHidden(id, hidden) {
+    let el = document.getElementById(id);
+    el && (el.hidden = hidden);
+  }
+  function showLogin(message = "") {
+    setHidden("app", !0), setHidden("setpw", !0), setHidden("login", !1);
+    let password = input("login-password");
+    password && (password.value = ""), setError(message), input("login-username")?.focus();
+  }
+  function showApp(user) {
+    let who = document.getElementById("who");
+    who && (who.textContent = `${user.displayName} \xB7 ${ROLE_DEFINITIONS[user.role].label}`), setHidden("login", !0), setHidden("setpw", !0), setHidden("app", !1), setError("");
+  }
+  function showSetPassword(user) {
+    setHidden("app", !0), setHidden("login", !0), setHidden("setpw", !1), setText("setpw-for", `Signed in as ${user.username} with a temporary password. Choose your own to continue.`), setText("setpw-error", "");
+    for (let id of ["setpw-new", "setpw-new2"]) {
+      let field = input(id);
+      field && (field.value = "");
+    }
+    input("setpw-new")?.focus();
+  }
+  function requirePasswordChange() {
+    let user = currentUser(), screen = document.getElementById("setpw");
+    user?.mustChangePassword && screen?.hidden && showSetPassword(user);
+  }
+  function enter(user, hooks) {
+    if (user.mustChangePassword) {
+      showSetPassword(user);
+      return;
+    }
+    showApp(user), hooks.onSignedIn(user);
+  }
+  async function submit(hooks) {
+    let username = input("login-username"), password = input("login-password");
+    if (!(!username || !password)) {
+      if (setError(""), !username.value.trim() || !password.value) {
+        setError(LOGIN_ERRORS.missing);
+        return;
+      }
+      setBusy("login-submit", !0);
+      try {
+        await hooks.whenReady?.();
+        let result = await signIn(username.value, password.value);
+        result.ok ? (username.value = "", password.value = "", enter(result.user, hooks)) : (password.value = "", password.focus(), setError(result.reason === "locked" ? lockedMessage(result.until) : LOGIN_ERRORS[result.reason]));
+      } finally {
+        setBusy("login-submit", !1);
+      }
+    }
+  }
+  async function submitNewPassword(hooks) {
+    let next = input("setpw-new"), again = input("setpw-new2");
+    if (!(!next || !again)) {
+      if (setText("setpw-error", ""), next.value !== again.value) {
+        setText("setpw-error", "The two passwords do not match.");
+        return;
+      }
+      setBusy("setpw-submit", !0);
+      try {
+        let error = await hooks.onSetPassword(next.value);
+        if (error) {
+          setText("setpw-error", error);
+          return;
+        }
+        let user = currentUser();
+        user && !user.mustChangePassword ? enter(user, hooks) : showLogin();
+      } catch (failure) {
+        console.error(failure), setText("setpw-error", "The new password could not be saved. Please try again.");
+      } finally {
+        setBusy("setpw-submit", !1);
+      }
+    }
+  }
+  function initLogin(hooks) {
+    let form = document.getElementById("login-form");
+    if (!(form instanceof HTMLFormElement)) throw new Error("The sign-in form is missing from the page");
+    let setForm = document.getElementById("setpw-form");
+    if (!(setForm instanceof HTMLFormElement)) throw new Error("The choose-a-password form is missing from the page");
+    form.addEventListener("submit", (event) => {
+      event.preventDefault(), submit(hooks);
+    }), setForm.addEventListener("submit", (event) => {
+      event.preventDefault(), submitNewPassword(hooks);
+    });
+    let leave = () => {
+      signOut(), showLogin(), hooks.onSignedOut();
+    };
+    document.getElementById("signout")?.addEventListener("click", leave), document.getElementById("setpw-signout")?.addEventListener("click", leave), window.setInterval(() => {
+      ["app", "setpw"].some((id) => document.getElementById(id)?.hidden === !1) && !currentUser() && (showLogin(LOGIN_ERRORS.expired), hooks.onSignedOut());
+    }, EXPIRY_CHECK_MS), (async () => {
+      await hooks.whenReady?.();
+      let saved = restoreSession();
+      saved ? enter(saved, hooks) : showLogin();
+    })();
   }
 
   // src/views/admin.ts
   function adminTab() {
-    const all = allMinistriesNow();
-    const active = activeMinistriesNow();
-    const K = esc;
-    const people = peopleByName();
-    const present = people.filter((p) => !p.gone);
-    const removed = people.filter((p) => p.gone);
-    const leadersOf = (key) => present.filter((p) => p.role === "leader" && (p.leads ?? []).includes(key)).map((p) => esc(p.name)).join(", ") || "-";
-    return `<div class="card"><h3>Ministries</h3><div style="overflow-x:auto"><table class="rec"><tr><th>Ministry</th><th>People needed</th><th>Exclusive</th><th>Team leaders</th><th></th></tr>` + all.map(
+    let all = allMinistriesNow(), active = activeMinistriesNow(), K = esc, people = peopleByName(), present = people.filter((p) => !p.gone), removed = people.filter((p) => p.gone), leadersOf = (key) => present.filter((p) => p.role === "leader" && (p.leads ?? []).includes(key)).map((p) => esc(p.name)).join(", ") || "-";
+    return '<div class="card"><h3>Ministries</h3><div style="overflow-x:auto"><table class="rec"><tr><th>Ministry</th><th>People needed</th><th>Exclusive</th><th>Team leaders</th><th></th></tr>' + all.map(
       (m) => `<tr class="${m.gone ? "fu" : ""}"><td><input data-mf="l" data-mk="${K(m.k)}" value="${K(m.l)}"></td><td><input type="number" min="0" style="width:64px" data-mf="n" data-mk="${K(m.k)}" value="${m.n}"></td><td><input type="checkbox" data-mf="x" data-mk="${K(m.k)}"${m.x ? " checked" : ""}></td><td>${leadersOf(m.k)}</td><td>${m.gone ? `<button data-mrs="${K(m.k)}">Restore</button>` : `<button data-mrm="${K(m.k)}">${state.cf === `m:${m.k}` ? "Confirm remove" : "Remove"}</button>`}</td></tr>`
     ).join("") + `</table></div><div class="l"><input id="mn" placeholder="New ministry name"><input id="mc" type="number" min="0" value="1" style="width:64px" title="People needed"><label><input id="mx" type="checkbox"> Exclusive</label><select id="ml" title="Team leader"><option value="">Team leader (optional)</option>${present.map((p) => `<option value="${K(p.id)}">${K(p.name)}</option>`).join("")}</select><button class="p" id="madd">Add ministry</button></div></div>
  <div class="card"><h3>People</h3><div style="overflow-x:auto"><table class="rec"><tr><th>Name</th><th>Family</th>${active.map((m) => `<th>${esc(m.l)}</th>`).join("")}<th></th></tr>` + present.map(
       (p) => `<tr><td><input data-pf="name" data-pid="${K(p.id)}" value="${K(p.name)}"></td><td><input type="number" min="0" style="width:60px" data-pf="fam" data-pid="${K(p.id)}" value="${p.family || 0}"></td>${active.map((m) => `<td><input type="checkbox" data-pe="${K(m.k)}" data-pid="${K(p.id)}"${p.elig.includes(m.k) ? " checked" : ""}></td>`).join("")}<td><button data-prm="${K(p.id)}">${state.cf === `p:${p.id}` ? "Confirm remove" : "Remove"}</button></td></tr>`
     ).join("") + `</table></div><div class="l"><input id="pn" placeholder="New person\u2019s name"><input id="pf" type="number" min="0" placeholder="Family" style="width:84px"><button class="p" id="padd">Add person</button></div>${removed.length ? '<div class="mut">Removed people</div>' + removed.map((p) => `<div class="l">${esc(p.name)}<button data-prs="${K(p.id)}">Restore</button></div>`).join("") : ""}</div><div class="card"><h3>Access and team leaders</h3><div class="mut">Set what each person may do. A role only takes effect for a person who has a login linked to them (see the Login column). Tick the ministries a team leader manages.</div><div style="overflow-x:auto"><table class="rec"><tr><th>Name</th><th>Login</th><th>Role</th>${active.map((m) => `<th>Leads ${esc(m.l)}</th>`).join("")}</tr>` + present.map((p) => {
-      const role = p.role ?? "member";
-      const login = MOCK_USERS.find((u) => u.personId === p.id)?.username;
+      let role = p.role ?? "member", login = Object.entries(state.logins).find(([, l]) => l.personId === p.id)?.[0] ?? MOCK_USERS.find((u) => u.personId === p.id)?.username;
       return `<tr><td>${K(p.name)}</td><td>${login ? K(login) : "-"}</td><td><select data-prole="1" data-pid="${K(p.id)}">${ROLES.map((r) => `<option value="${r}"${r === role ? " selected" : ""}>${esc(ROLE_DEFINITIONS[r].label)}</option>`).join("")}</select></td>${active.map((m) => `<td><input type="checkbox" data-plead="${K(m.k)}" data-pid="${K(p.id)}"${(p.leads ?? []).includes(m.k) ? " checked" : ""}${role === "leader" ? "" : " disabled"}></td>`).join("")}</tr>`;
     }).join("") + "</table></div></div>" + loginsCard(present);
   }
   function loginsCard(present) {
-    const K = esc;
-    const usernames = Object.keys(state.logins).sort();
-    const withLogin = new Set(Object.values(state.logins).map((l) => l.personId));
-    const roleOf = (personId) => {
-      const person = personId ? state.people[personId] : void 0;
+    let K = esc, usernames = Object.keys(state.logins).sort(), withLogin = new Set(Object.values(state.logins).map((l) => l.personId)), roleOf = (personId) => {
+      let person = personId ? state.people[personId] : void 0;
       return ROLE_DEFINITIONS[person?.role ?? "member"].label;
-    };
-    const demo = MOCK_USERS.map(
+    }, demo = MOCK_USERS.map(
       (u) => `<tr><td>${K(u.username)}</td><td>${u.personId ? K(state.people[u.personId]?.name ?? u.personId) : "-"}</td><td>${K(
         u.personId && state.people[u.personId]?.role ? roleOf(u.personId) : ROLE_DEFINITIONS[u.role].label
       )}</td><td class="mut">Built in (password fixed in code)</td></tr>`
-    ).join("");
-    const stored = usernames.map((username) => {
-      const login = state.logins[username];
+    ).join(""), stored = usernames.map((username) => {
+      let login = state.logins[username];
       if (!login) return "";
-      const confirming = state.cf === `l:${username}`;
-      return `<tr><td>${K(username)}</td><td>${K(state.people[login.personId]?.name ?? login.personId)}</td><td>${K(roleOf(login.personId))}</td><td><input type="password" id="lp-${K(username)}" data-keep="1" autocomplete="new-password" placeholder="New password"><button data-lreset="${K(username)}">Reset password</button><button data-lrm="${K(username)}">${confirming ? "Confirm remove" : "Remove"}</button></td></tr>`;
-    }).join("");
-    const free = present.filter((p) => !withLogin.has(p.id));
-    return `<div class="card"><h3>Logins</h3><div class="mut">A login signs in as the person it is linked to, with that person's role. Give people their password in person; they can change it on their Profile tab. Usernames are 3 to 32 letters, digits, dots, dashes or underscores. Passwords need 8 or more characters.</div><div style="overflow-x:auto"><table class="rec"><tr><th>Username</th><th>Person</th><th>Role</th><th></th></tr>${demo}${stored}</table></div>${free.length ? `<div class="l"><select id="lperson" data-keep="1">${free.map((p) => `<option value="${K(p.id)}">${K(p.name)}</option>`).join("")}</select><input id="lname" data-keep="1" autocomplete="off" autocapitalize="none" placeholder="Username"><input id="lpass" type="password" data-keep="1" autocomplete="new-password" placeholder="Password"><button class="p" id="ladd">Create login</button></div>` : '<div class="mut">Everyone on the roster already has a login.</div>'}</div>`;
+      let confirming = state.cf === `l:${username}`;
+      return `<tr><td>${K(username)}</td><td>${K(state.people[login.personId]?.name ?? login.personId)}</td><td>${K(roleOf(login.personId))}</td><td>${login.temp ? '<span class="mut">Temporary password, not yet changed</span> ' : ""}<button data-lreset="${K(username)}">Reset password</button><button data-lrm="${K(username)}">${confirming ? "Confirm remove" : "Remove"}</button></td></tr>`;
+    }).join(""), free = present.filter((p) => !withLogin.has(p.id));
+    return `<div class="card"><h3>Logins</h3>${state.issued ? `<div class="card cue" id="lissued"><div><b>Temporary password for ${K(state.issued.username)}:</b> <code id="lissued-pw">${K(state.issued.password)}</code></div><div class="mut">Give it to them in person. It is shown only now and is not stored anywhere you can read it again. They must choose their own password the first time they sign in. If you lose it, reset the password for a new one.</div><button type="button" id="lissued-ok">Done</button></div>` : ""}<div class="mut">A login signs in as the person it is linked to, with that person's role. Creating or resetting a login makes a random temporary password for you to hand over; the person is asked to choose their own the first time they sign in. Usernames are 3 to 32 letters, digits, dots, dashes or underscores.</div><div style="overflow-x:auto"><table class="rec"><tr><th>Username</th><th>Person</th><th>Role</th><th></th></tr>${demo}${stored}</table></div>${free.length ? `<div class="l"><select id="lperson" data-keep="1">${free.map((p) => `<option value="${K(p.id)}">${K(p.name)}</option>`).join("")}</select><input id="lname" data-keep="1" autocomplete="off" autocapitalize="none" placeholder="Username"><button class="p" id="ladd">Create login</button></div>` : '<div class="mut">Everyone on the roster already has a login.</div>'}</div>`;
   }
   function changeLog() {
     return `<div class="card"><h3>Change log</h3>${state.log.map(
@@ -831,56 +793,131 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
 
   // src/views/away.ts
   function awayTab() {
-    const people = peopleByName().filter((p) => p.elig.length && !p.gone && canManageAway(p.id));
-    const entries = Object.entries(state.away).filter(([, a]) => canManageAway(a.person)).sort((a, b) => a[1].from < b[1].from ? -1 : 1);
-    const form = people.length ? `<div class="l"><select id="ap">${people.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>
+    let people = peopleByName().filter((p) => p.elig.length && !p.gone && canManageAway(p.id)), entries = Object.entries(state.away).filter(([, a]) => canManageAway(a.person)).sort((a, b) => a[1].from < b[1].from ? -1 : 1);
+    return `<div class="card"><h3>Flag unavailability</h3>${people.length ? `<div class="l"><select id="ap">${people.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>
   <input type="date" id="af"><span>to</span><input type="date" id="at"><input id="an" placeholder="Note (optional)"><button class="p" id="aadd">Add</button></div>
-  <div class="mut">Leave \u201Cto\u201D blank for a single date. Rosters already generated are flagged in red; use \u201CRegenerate this Sunday\u201D to refill.</div>` : '<div class="mut">There is nobody you can flag as unavailable yet. A member login must be linked to a person on the roster.</div>';
-    return `<div class="card"><h3>Flag unavailability</h3>${form}</div>
+  <div class="mut">Leave \u201Cto\u201D blank for a single date. Rosters already generated are flagged in red; use \u201CRegenerate this Sunday\u201D to refill.</div>` : '<div class="mut">There is nobody you can flag as unavailable yet. A member login must be linked to a person on the roster.</div>'}</div>
   <div class="card"><h3>Away</h3>${entries.map(
       ([k, a]) => `<div class="l">${esc(state.people[a.person]?.name || a.person)} \xB7 ${a.from}${a.to !== a.from ? ` to ${a.to}` : ""} ${a.note ? `\xB7 ${esc(a.note)}` : ""}<button data-del="${esc(k)}">Remove</button></div>`
     ).join("") || '<span class="mut">Nobody flagged.</span>'}</div>`;
   }
 
-  // src/views/mine.ts
-  var PAST_SHOWN = 5;
-  var withText = (s) => s.with.length ? ` <span class="mut">with ${esc(s.with.join(", "))}</span>` : "";
-  function mineTab() {
-    const personId = currentUser()?.personId ?? null;
-    const person = personId ? state.people[personId] : void 0;
-    if (!personId || !person) {
+  // src/views/schedule-shared.ts
+  var MAX_CUES = 5, OWN_SHOWN = 3, plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`, teamLabel = (key) => allMinistriesNow().find((m) => m.k === key)?.l ?? key, labelOn = (date, key) => ministriesOn(date).find((m) => m.k === key)?.l ?? teamLabel(key);
+  function swapCueCard(pending, heading) {
+    let rows = pending.slice(0, MAX_CUES).map(
+      (s) => `<div class="row"><b>${formatDate(s.date)}</b><div>${esc(state.people[s.from]?.name ?? s.from)} asks to be covered in ${esc(labelOn(s.date, s.ministry))}${s.note ? ` <span class="mut">\xB7 ${esc(s.note)}</span>` : ""}</div></div>`
+    ).join(""), more = pending.length > MAX_CUES ? `<div class="mut">and ${pending.length - MAX_CUES} more</div>` : "", body = pending.length ? `${rows}${more}<div class="l noprint"><button class="p" data-goto="w">Review and approve</button></div>` : '<p class="mut">No swap requests waiting.</p>';
+    return `<div class="card cue" data-requires="decideSwaps"><h3>${esc(heading)}${pending.length ? ` <span class="badge">${pending.length}</span>` : ""}</h3>${body}</div>`;
+  }
+  function ownSlotsCard(personId) {
+    let person = personId ? state.people[personId] : void 0;
+    if (!personId || !person) return "";
+    let { upcoming } = slotsFor(personId);
+    return upcoming.length ? `<div class="card"><h3>Your own Sundays</h3>${upcoming.slice(0, OWN_SHOWN).map(
+      (s) => `<div class="row"><b>${formatDate(s.date)}</b><div>${esc(s.ministry)}${s.away ? ' <span class="warn">\u26A0 marked away</span>' : ""} ${hasOpenSwap(personId, s.date, s.ministryKey) ? '<span class="mut">\xB7 swap requested</span>' : `<button class="noprint" data-requires="requestSwap" data-swapfor="${esc(s.date)}|${esc(s.ministryKey)}">Request swap</button>`}</div></div>`
+    ).join("")}</div>` : "";
+  }
+
+  // src/views/schedule-master.ts
+  function masterSchedule(user) {
+    let all = upcomingSundays(Number.POSITIVE_INFINITY), dates = all.slice(0, UPCOMING_SHOWN), pending = pendingSwapsFor(user), flagged = all.filter((d) => flagsOn(d).n > 0).length, missing = windowDates().filter((d) => !state.ros[d]).length, header = `<div class="card"><h3>All teams</h3><div class="mut">Master schedule of every team for the coming Sundays.</div>
+<div class="l noprint"><button class="p cta" id="gen" data-requires="generateRoster">Generate Roster</button><button class="cta" data-requires="manageMembers" data-goto="h" title="Headcounts, exclusive roles and who is eligible for each ministry">Edit Rotations</button><button class="cta" data-requires="editAllMinistries" data-goto="r" title="Move people between ministries on any Sunday">Override Allocations</button></div>
+<div class="l"><span class="badge">${plural(all.length, "upcoming Sunday")}</span><span class="badge">Needs attention: ${flagged}</span><span class="badge">${plural(pending.length, "swap request")} waiting</span></div>
+<div class="mut">${missing ? `${plural(missing, "Sunday")} in the three-month window ${missing === 1 ? "has" : "have"} not been generated yet.` : "Every Sunday in the three-month window has been generated."}</div></div>`;
+    if (!dates.length)
+      return `${header}<div class="card"><p class="mut">No upcoming Sunday has been generated yet. Press Generate Roster.</p></div>${swapCueCard(pending, "Swap requests waiting")}`;
+    let columns = [];
+    for (let d of dates)
+      for (let m of ministriesOn(d)) columns.some((c) => c.k === m.k) || columns.push({ k: m.k, l: m.l });
+    let rows = dates.map((d) => {
+      let ministries = ministriesOn(d), issues = flagsOn(d), cells = columns.map((c) => {
+        let m = ministries.find((x) => x.k === c.k);
+        if (!m) return '<td class="mut">-</td>';
+        let ids = rosterAt(d).s[c.k] ?? [], names = ids.map((id) => {
+          let problems = issues.out[id];
+          return `<span${problems ? ' class="warn"' : ""} title="${esc((problems ?? []).join("; "))}">${problems ? "\u26A0 " : ""}${esc(nameOn(d, id))}</span>`;
+        }).join(", "), short = m.n - ids.length;
+        return `<td class="nm">${names || '<span class="mut">Unfilled</span>'}${short > 0 ? `<div class="warn">needs ${short} more</div>` : ""}</td>`;
+      }).join("");
+      return `<tr><td>${formatDate(d)}</td>${cells}<td>${issues.n ? `<span class="fl">\u2691 ${issues.n}</span>` : ""}</td></tr>`;
+    }).join(""), more = all.length > dates.length ? `<div class="mut">Showing the next ${dates.length} of ${all.length} Sundays. The Roster tab lists them all.</div>` : "", grid = `<div class="card"><h3>Master grid</h3><div style="overflow-x:auto"><table class="rec"><tr><th>Sunday</th>${columns.map((c) => `<th>${esc(c.l)}</th>`).join("")}<th>Issues</th></tr>${rows}</table></div>${more}</div>`;
+    return header + grid + swapCueCard(pending, "Swap requests waiting");
+  }
+
+  // src/views/schedule-member.ts
+  var PAST_SHOWN = 5, withText = (s) => s.with.length ? ` <span class="mut">with ${esc(s.with.join(", "))}</span>` : "";
+  function memberSchedule(user) {
+    let personId = user.personId, person = personId ? state.people[personId] : void 0;
+    if (!personId || !person)
       return '<div class="card"><h3>My schedule</h3><p class="mut">Your login is not linked to a person on the roster, so there is no personal schedule to show. Use the Serving tab to see who is serving this Sunday. An admin links a login to a person.</p></div>';
+    let { upcoming, past } = slotsFor(personId), today = todayIso(), next = upcoming[0], away = Object.values(state.away).filter((a) => a.person === personId && a.to >= today).sort((a, b) => a.from < b.from ? -1 : 1), actions = `<div class="l noprint"><button class="p cta" data-requires="manageOwnAway" data-goto="a">Mark Unavailability</button><button class="p cta" data-requires="requestSwap" data-goto="w">Request a Swap</button>${upcoming.length ? '<button id="ics">Download calendar (.ics)</button>' : ""}</div>`, nextCard = next ? `<div class="card sv"><b>Next time you are serving</b><h3>${formatDate(next.date)}: ${esc(next.ministry)}</h3>${next.with.length ? `<div class="mut">With ${esc(next.with.join(", "))}</div>` : ""}${next.away ? '<div class="warn">\u26A0 You are marked away on this date. Tell a team leader.</div>' : ""}</div>` : '<div class="card"><b>Next time you are serving</b><p class="mut">You are not on the roster for any upcoming Sunday that has been generated.</p></div>', list = upcoming.length ? upcoming.map(
+      (s) => `<div class="row"><b>${formatDate(s.date)}</b><div>${esc(s.ministry)}${withText(s)}${s.away ? ' <span class="warn">\u26A0 marked away</span>' : ""} ${hasOpenSwap(personId, s.date, s.ministryKey) ? '<span class="mut">\xB7 swap requested</span>' : `<button class="noprint" data-requires="requestSwap" data-swapfor="${esc(s.date)}|${esc(s.ministryKey)}">Request swap</button>`}</div></div>`
+    ).join("") : '<span class="mut">Nothing yet.</span>', awayList2 = away.length ? away.map((a) => `<div class="l">${a.from}${a.to !== a.from ? ` to ${a.to}` : ""}${a.note ? ` \xB7 ${esc(a.note)}` : ""}</div>`).join("") : '<span class="mut">No upcoming away dates. Use Mark Unavailability above to flag one.</span>', recent = past.slice(-PAST_SHOWN).reverse().map((s) => `<div class="row"><b>${formatDate(s.date)}</b><div>${esc(s.ministry)}${withText(s)}</div></div>`).join(""), history = past.length ? `<div class="card"><h3>Your service so far</h3><div class="mut">You have served ${past.length} time${past.length === 1 ? "" : "s"} on recorded Sundays. Most recent:</div>${recent}</div>` : "";
+    return `<div class="card"><h3>${esc(person.name)}</h3><div class="mut">Your upcoming Sundays on the roster.</div>${actions}</div>${nextCard}<div class="card"><h3>All upcoming Sundays</h3>${list}</div><div class="card"><h3>Your away dates</h3>${awayList2}</div>${history}`;
+  }
+
+  // src/views/schedule-team.ts
+  function teamStats(key, dates, swaps) {
+    let stats = { scheduled: 0, short: 0, away: 0, swaps };
+    for (let d of dates) {
+      let m = ministriesOn(d).find((x) => x.k === key);
+      if (!m) continue;
+      let ids = rosterAt(d).s[key] ?? [];
+      stats.scheduled++, ids.length < m.n && stats.short++, stats.away += ids.filter((id) => awayOn(id, d)).length;
     }
-    const { upcoming, past } = slotsFor(personId);
-    const today = todayIso();
-    const next = upcoming[0];
-    const away = Object.values(state.away).filter((a) => a.person === personId && a.to >= today).sort((a, b) => a.from < b.from ? -1 : 1);
-    const requested = (s) => Object.values(state.swaps).some((x) => x.status === "open" && x.from === personId && x.date === s.date && x.ministry === s.ministryKey);
-    const nextCard = next ? `<div class="card sv"><b>Next time you are serving</b><h3>${formatDate(next.date)}: ${esc(next.ministry)}</h3>${next.with.length ? `<div class="mut">With ${esc(next.with.join(", "))}</div>` : ""}${next.away ? '<div class="warn">\u26A0 You are marked away on this date. Tell a team leader.</div>' : ""}</div>` : '<div class="card"><b>Next time you are serving</b><p class="mut">You are not on the roster for any upcoming Sunday that has been generated.</p></div>';
-    const list = upcoming.length ? upcoming.map(
-      (s) => `<div class="row"><b>${formatDate(s.date)}</b><div>${esc(s.ministry)}${withText(s)}${s.away ? ' <span class="warn">\u26A0 marked away</span>' : ""} ${requested(s) ? '<span class="mut">\xB7 swap requested</span>' : `<button class="noprint" data-requires="requestSwap" data-swapfor="${esc(s.date)}|${esc(s.ministryKey)}">Request swap</button>`}</div></div>`
-    ).join("") : '<span class="mut">Nothing yet.</span>';
-    const awayList2 = away.length ? away.map((a) => `<div class="l">${a.from}${a.to !== a.from ? ` to ${a.to}` : ""}${a.note ? ` \xB7 ${esc(a.note)}` : ""}</div>`).join("") : '<span class="mut">No upcoming away dates. Use the Away tab to flag one.</span>';
-    const recent = past.slice(-PAST_SHOWN).reverse().map((s) => `<div class="row"><b>${formatDate(s.date)}</b><div>${esc(s.ministry)}${withText(s)}</div></div>`).join("");
-    const history = past.length ? `<div class="card"><h3>Your service so far</h3><div class="mut">You have served ${past.length} time${past.length === 1 ? "" : "s"} on recorded Sundays. Most recent:</div>${recent}</div>` : "";
-    return `<div class="card"><h3>${esc(person.name)}</h3><div class="mut">Your upcoming Sundays on the roster.</div>${upcoming.length ? '<div class="l noprint"><button id="ics">Download calendar (.ics)</button></div>' : ""}</div>${nextCard}<div class="card"><h3>All upcoming Sundays</h3>${list}</div><div class="card"><h3>Your away dates</h3>${awayList2}</div>${history}`;
+    return stats;
+  }
+  function teamCard(key, dates) {
+    let rows = dates.map((d) => {
+      let m = ministriesOn(d).find((x) => x.k === key);
+      if (!m) return `<div class="row"><b>${formatDate(d)}</b><div class="mut">Not scheduled</div></div>`;
+      let ids = rosterAt(d).s[key] ?? [], { out } = issuesOn(d), names = ids.map((id) => {
+        let problems = out[id];
+        return `<span${problems ? ' class="warn"' : ""} title="${esc((problems ?? []).join("; "))}">${problems ? "\u26A0 " : ""}${esc(nameOn(d, id))}</span>`;
+      }).join(", "), short = m.n - ids.length;
+      return `<div class="row"><b>${formatDate(d)}</b><div>${names || '<span class="mut">Unfilled</span>'}${short > 0 ? ` <span class="warn">needs ${short} more</span>` : ""}</div></div>`;
+    }).join("");
+    return `<div class="card"><h3>${esc(teamLabel(key))}</h3>${rows}</div>`;
+  }
+  function teamSchedule(user) {
+    let keys = user.managedMinistries, dates = upcomingSundays(), pending = pendingSwapsFor(user), header = `<div class="card"><h3>Team schedule</h3><div class="mut">${keys.length ? `Leading ${keys.map((k) => esc(teamLabel(k))).join(", ")}. Next ${plural(dates.length, "Sunday")}.` : "You are not leading a team yet."}</div><div class="l noprint"><button class="${pending.length ? "p " : ""}cta" data-requires="decideSwaps" data-goto="w">Swap requests (${pending.length})</button><button class="cta" data-requires="editRoster" data-goto="r">Edit team on Roster</button></div></div>`, teams;
+    return keys.length ? dates.length ? teams = `<div class="card"><h3>Team oversight</h3><div style="overflow-x:auto"><table class="rec"><tr><th>Team</th><th>Sundays</th><th>Short-staffed</th><th>Away clashes</th><th>Swap requests</th></tr>${keys.map((k) => {
+      let s = teamStats(k, dates, pending.filter((p) => p.ministry === k).length);
+      return `<tr><td>${esc(teamLabel(k))}</td><td>${s.scheduled}</td><td${s.short ? ' class="fl"' : ""}>${s.short}</td><td${s.away ? ' class="fl"' : ""}>${s.away}</td><td>${s.swaps}</td></tr>`;
+    }).join("")}</table></div></div>` + keys.map((k) => teamCard(k, dates)).join("") : teams = '<div class="card"><p class="mut">No upcoming Sunday has been generated yet. An admin can generate the roster.</p></div>' : teams = '<div class="card"><p class="mut">No team is assigned to you, so there is no team schedule to show. An admin assigns teams on the Admin tab under Access and team leaders.</p></div>', header + swapCueCard(pending, "Swap requests to approve") + teams + ownSlotsCard(user.personId);
+  }
+
+  // src/views/mine.ts
+  function mineTab() {
+    let user = currentUser();
+    if (!user) return "";
+    let html;
+    switch (user.role) {
+      case "admin":
+        html = masterSchedule(user);
+        break;
+      case "leader":
+        html = teamSchedule(user);
+        break;
+      case "member":
+        html = memberSchedule(user);
+        break;
+    }
+    return `<div data-landing="${user.role}">${html}</div>`;
   }
 
   // src/views/profile.ts
   function profileTab() {
-    const user = currentUser();
+    let user = currentUser();
     if (!user) return "";
-    const person = user.personId ? state.people[user.personId] : void 0;
-    const role = ROLE_DEFINITIONS[user.role];
-    const account = `<div class="mut">Signed in as <b>${esc(user.username)}</b> \xB7 ${esc(role.label)}. ${esc(role.description)}</div>`;
-    const details = person ? `<div class="card"><h3>My details</h3>${account}
+    let person = user.personId ? state.people[user.personId] : void 0, role = ROLE_DEFINITIONS[user.role], account = `<div class="mut">Signed in as <b>${esc(user.username)}</b> \xB7 ${esc(role.label)}. ${esc(role.description)}</div>`, details = person ? `<div class="card"><h3>My details</h3>${account}
   <div class="l"><label>Name <input data-prof="name" data-keep="1" maxlength="60" value="${esc(person.name)}"></label>
   <label>Phone <input data-prof="phone" data-keep="1" maxlength="60" value="${esc(person.phone ?? "")}" placeholder="Optional"></label></div>
   <div class="mut">Changes save when you leave the box. Leaders and admins can see your name; your phone number is stored with your roster details.</div>
   <div class="mut">Ministries you can serve in: ${esc(
       allMinistriesNow().filter((m) => !m.gone && person.elig.includes(m.k)).map((m) => m.l).join(", ")
-    ) || "none yet. Ask an admin."}</div></div>` : `<div class="card"><h3>My details</h3>${account}<p class="mut">Your login is not linked to a person on the roster, so there are no details to edit. An admin links a login to a person.</p></div>`;
-    const password = user.kind === "stored" ? `<div class="card"><h3>Change password</h3>
+    ) || "none yet. Ask an admin."}</div></div>` : `<div class="card"><h3>My details</h3>${account}<p class="mut">Your login is not linked to a person on the roster, so there are no details to edit. An admin links a login to a person.</p></div>`, password = user.kind === "stored" ? `<div class="card"><h3>Change password</h3>
   <div class="l"><input type="password" id="pw-cur" data-keep="1" autocomplete="current-password" placeholder="Current password">
   <input type="password" id="pw-new" data-keep="1" autocomplete="new-password" placeholder="New password (8+ characters)">
   <input type="password" id="pw-new2" data-keep="1" autocomplete="new-password" placeholder="Repeat new password">
@@ -891,13 +928,15 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
   // src/help.ts
   var HELP = {
     m: {
-      intro: "Your own roster: the Sundays you are serving and where, and your away dates. This is the first page you see when you sign in.",
+      intro: "The first page you see when you sign in. Its layout follows your role: members see their own Sundays, team leaders see the teams they lead, and admins see every team at once. It changes by itself if an admin changes your role.",
       points: [
         "Shows only upcoming Sundays that have been generated, so it grows as the roster is extended.",
         "If a Sunday shows \u201Cmarked away\u201D, you are on the roster for a day you flagged as unavailable. Tell a team leader so they can arrange cover.",
         "To flag a date you cannot serve, use the Away tab.",
         "If it says your login is not linked to a person, ask an admin to link it.",
-        "Request swap beside a Sunday asks a team leader to find cover. Download calendar (.ics) saves your upcoming Sundays for any calendar app."
+        "Members: Mark Unavailability opens the Away tab and Request a Swap opens the Swaps tab. Request swap beside a Sunday asks a team leader to find cover. Download calendar (.ics) saves your upcoming Sundays for any calendar app.",
+        "Team leaders: the full schedule of each team you lead, a team oversight table (short-staffed Sundays, away clashes) and the swap requests waiting for your approval. Review and approve opens the Swaps tab.",
+        "Admins / Elders: a master grid of every team for the coming Sundays, with Generate Roster, Edit Rotations (Admin tab) and Override Allocations (Roster tab)."
       ]
     },
     w: {
@@ -912,8 +951,7 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
       intro: "Your own name and phone number, and your password if your login was created in the Admin tab.",
       points: [
         "Name and phone save when you leave the box.",
-        "Passwords need at least 8 characters. After 5 wrong passwords in a row a username is locked for 15 minutes on this device.",
-        "The built-in demo accounts cannot change their password here."
+        "Passwords need at least 8 characters. After 5 wrong passwords in a row a username is locked for 15 minutes on this device."
       ]
     },
     s: {
@@ -964,7 +1002,8 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
         "Ministries: rename one, change how many people it needs (used only when generating automatically) or mark it exclusive (anyone serving in it can\u2019t serve in anything else that day). Remove stops a ministry being used for new Sundays. Sundays that already exist keep showing it, with the people assigned, exactly as generated. Restore brings it back.",
         "Each Sunday keeps a locked copy of the ministry names, headcounts, exclusive settings, people names and eligibility from when it was generated, so changes here never alter existing Sundays. A new ministry only appears on an existing Sunday if you press Regenerate on it. Sundays generated before this feature existed are locked automatically the first time the page is opened by someone who can edit.",
         "Access and team leaders: choose each person\u2019s role (Admin / Elder, Team Leader or Member) and tick the ministries a team leader manages. A role only takes effect for a person who has a login linked to them. When adding a ministry you can pick its team leader straight away.",
-        "Logins: create a login for a person with a username and password, reset a forgotten password, or remove a login. A login signs in as its person, with that person\u2019s role.",
+        "Logins: create a login for a person with a username. The page makes a random temporary password and shows it to you once; give it to them in person. They are asked to choose their own password the first time they sign in. Reset password makes a new temporary one, and Remove deletes the login. A login signs in as its person, with that person\u2019s role.",
+        "The last admin who can sign in cannot be demoted, removed, or have their login removed. Make another person an admin, with a login, first.",
         "Change log (at the bottom): every change, newest first, with who made it."
       ]
     }
@@ -973,46 +1012,43 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
   // src/views/shared.ts
   var TEXTAREA_STYLE = "width:100%;box-sizing:border-box;font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:6px 10px";
   function verseBox(date) {
-    const verse = state.drafts[`v${date}`] ?? state.ros[date]?.verse ?? "";
+    let verse = state.drafts[`v${date}`] ?? state.ros[date]?.verse ?? "";
     return `<div class="noprint" data-requires="editNotes"><textarea data-verse="${date}" rows="2" style="${TEXTAREA_STYLE}" placeholder="Verse for this Sunday, e.g. reference and text\u2026">${esc(verse)}</textarea><div class="l"><button data-vsave="${date}">Save verse</button></div></div>`;
   }
   function noteBox(date) {
-    const note = state.drafts[date] ?? state.ros[date]?.note ?? "";
+    let note = state.drafts[date] ?? state.ros[date]?.note ?? "";
     return `<div class="noprint" data-requires="editNotes"><textarea data-note="${date}" rows="3" style="${TEXTAREA_STYLE}" placeholder="Notes for this Sunday\u2026">${esc(note)}</textarea><div class="l"><button data-nsave="${date}">Save note</button></div></div>`;
   }
   function helpBox(tab) {
-    const help = HELP[tab];
+    let help = HELP[tab];
     return `<div class="card noprint"><b>About this tab</b><div class="mut">${help.intro}</div><ul class="mut" style="margin:6px 0 0;padding-left:20px">${help.points.map((x) => `<li>${x}</li>`).join("")}</ul></div>`;
   }
 
   // src/views/record.ts
   function flagSummary(dates) {
-    const flagged = flaggedDates(dates, todayIso(), (d) => issuesOn(d));
+    let flagged = flaggedDates(dates, todayIso(), (d) => issuesOn(d));
     return flagged.length ? `<div class="warn" style="margin-top:6px">\u2691 ${flagged.length} upcoming Sunday${flagged.length === 1 ? "" : "s"} need${flagged.length === 1 ? "s" : ""} attention: ${flagged.map((d) => `<button data-fl="${d}">${formatShortDate(d)}</button>`).join(" ")}</div>` : '<div class="mut" style="margin-top:6px">No upcoming Sundays have problems.</div>';
   }
   function flagRow(dates) {
-    return `<tr><td>\u2691 Needs attention</td><td colspan="4" class="mut" style="text-align:left">click a flag to fix it</td>` + dates.map((d) => {
+    return '<tr><td>\u2691 Needs attention</td><td colspan="4" class="mut" style="text-align:left">click a flag to fix it</td>' + dates.map((d) => {
       if (d < todayIso()) return "<td></td>";
-      const f = flagsOn(d);
+      let f = flagsOn(d);
       if (!f.n) return "<td></td>";
-      const tip = [...f.sum, ...Object.entries(f.out).map(([id, l]) => `${nameOn(d, id)}: ${l.join("; ")}`)].join(" | ");
+      let tip = [...f.sum, ...Object.entries(f.out).map(([id, l]) => `${nameOn(d, id)}: ${l.join("; ")}`)].join(" | ");
       return `<td data-fl="${d}" class="fl" style="cursor:pointer" title="${esc(tip)}">\u2691 ${f.n}</td>`;
     }).join("") + "</tr>";
   }
   function flagDetail() {
-    const d = state.fd;
-    const r = d ? state.ros[d] : void 0;
+    let d = state.fd, r = d ? state.ros[d] : void 0;
     if (!d || !r) return "";
-    const { out, sum } = issuesOn(d);
-    const on = {};
-    for (const m of ministriesOn(d)) for (const i of r.s[m.k] || []) on[i] = m.l;
-    const lines = [
+    let { out, sum } = issuesOn(d), on = {};
+    for (let m of ministriesOn(d)) for (let i of r.s[m.k] || []) on[i] = m.l;
+    let lines = [
       ...sum.map((s) => `<li>${esc(s)}</li>`),
       ...Object.entries(out).map(([id, l]) => `<li><b>${esc(nameOn(d, id))}</b>: ${esc(l.join("; "))}</li>`)
     ];
     return `<div class="card"><h3>${formatDate(d)} <button data-fl="${d}">Close</button></h3>` + (lines.length ? `<ul class="warn" style="margin:0 0 8px;padding-left:20px">${lines.join("")}</ul>` : '<div class="mut">No issues on this Sunday.</div>') + ministriesOn(d).map((m) => {
-      const ids = r.s[m.k] || [];
-      const opts = peopleByName().filter((p) => !p.gone && p.elig.includes(m.k) && !ids.includes(p.id));
+      let ids = r.s[m.k] || [], opts = peopleByName().filter((p) => !p.gone && p.elig.includes(m.k) && !ids.includes(p.id));
       return `<div class="row"><b>${esc(m.l)}<div class="mut">${m.n} needed</div></b><div>${ids.map(
         (i) => `<span${out[i] ? ' class="warn"' : ""}>${esc(nameOn(d, i))}<span class="x" data-edit-ministry="${m.k}" data-srm="${m.k}|${esc(i)}" data-d="${d}" title="Remove">\u2715</span></span>`
       ).join(", ") || '<span class="mut">Unfilled</span>'}<div class="l" data-edit-ministry="${m.k}"><select id="sa-${m.k}"><option value="">Add\u2026</option>${opts.map(
@@ -1021,56 +1057,33 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
     }).join("") + `<div class="l"><button data-requires="generateRoster" data-regen="${d}">${state.cf === d ? "Confirm: replace this Sunday" : "Regenerate this Sunday"}</button></div></div>`;
   }
   function recordTab() {
-    const M = allMinistriesNow;
-    const ds = Object.keys(state.ros).sort();
-    const nx = ds.find((x) => x >= todayIso()) || "";
-    const up = ds.filter((d) => !nx || d <= nx);
-    const sd = formatShortDate;
+    let M = allMinistriesNow, ds = Object.keys(state.ros).sort(), nx = ds.find((x) => x >= todayIso()) || "", up = ds.filter((d) => !nx || d <= nx), sd = formatShortDate;
     if (!ds.length) return '<div class="card"><p class="mut">No Sundays generated yet.</p></div>';
-    const ab = {};
-    for (const m of M()) ab[m.k] = m.l.split(/[ \/&]+/).map((w) => w.charAt(0)).join("").slice(0, 2);
-    const rows = peopleList().map((p) => {
-      const cells = ds.map((d) => M().filter((m) => (rosterAt(d).s[m.k] || []).includes(p.id)).map((m) => m.k));
-      let run = 0;
-      let best = 0;
-      let tot = 0;
-      let last = "";
-      up.forEach((d, i) => {
-        if ((cells[i] ?? []).length) {
-          run++;
-          tot++;
-          last = d;
-          best = Math.max(best, run);
-        } else run = 0;
-      });
-      return { p, cells, run, best, tot, last };
-    }).filter((x) => x.p.elig.length && !x.p.gone || x.tot || x.cells.some((c) => c.length)).sort((a, b) => b.run - a.run || a.p.name.localeCompare(b.p.name));
-    const x0 = rows.find((r) => r.p.id === state.pick);
-    const cnt = {};
-    let det = "";
-    if (x0) {
-      x0.cells.forEach((c, i) => {
-        const d = ds[i];
-        if (d !== void 0 && up.includes(d)) for (const k of c) cnt[k] = (cnt[k] || 0) + 1;
-      });
-      det = `<div class="card"><h3>${esc(x0.p.name)}</h3><div class="mut">Run ${x0.run} \xB7 Longest ${x0.best} \xB7 Total ${x0.tot} \xB7 Last served ${x0.last ? formatDate(x0.last) : "never"}</div>
+    let ab = {};
+    for (let m of M()) ab[m.k] = m.l.split(/[ \/&]+/).map((w) => w.charAt(0)).join("").slice(0, 2);
+    let rows = peopleList().map((p) => {
+      let cells = ds.map((d) => M().filter((m) => (rosterAt(d).s[m.k] || []).includes(p.id)).map((m) => m.k)), run = 0, best = 0, tot = 0, last = "";
+      return up.forEach((d, i) => {
+        (cells[i] ?? []).length ? (run++, tot++, last = d, best = Math.max(best, run)) : run = 0;
+      }), { p, cells, run, best, tot, last };
+    }).filter((x) => x.p.elig.length && !x.p.gone || x.tot || x.cells.some((c) => c.length)).sort((a, b) => b.run - a.run || a.p.name.localeCompare(b.p.name)), x0 = rows.find((r) => r.p.id === state.pick), cnt = {}, det = "";
+    x0 && (x0.cells.forEach((c, i) => {
+      let d = ds[i];
+      if (d !== void 0 && up.includes(d)) for (let k of c) cnt[k] = (cnt[k] || 0) + 1;
+    }), det = `<div class="card"><h3>${esc(x0.p.name)}</h3><div class="mut">Run ${x0.run} \xB7 Longest ${x0.best} \xB7 Total ${x0.tot} \xB7 Last served ${x0.last ? formatDate(x0.last) : "never"}</div>
   <div class="l">${M().map((m) => `<span style="border:1px solid var(--bd);border-radius:14px;padding:3px 10px">${esc(m.l)}: ${cnt[m.k] || 0}</span>`).join("")}</div>
   <div style="overflow-x:auto"><table class="rec"><tr><th>Sunday</th><th>Serving</th><th>Note</th></tr>${ds.slice().reverse().map((d) => {
-        const c = x0.cells[ds.indexOf(d)] ?? [];
-        return `<tr class="${up.includes(d) ? "" : "fu"}"><td>${formatDate(d)}</td><td>${c.length ? c.map((k) => esc(M().find((m) => m.k === k)?.l)).join(" + ") : awayOn(x0.p.id, d) ? "Away" : "-"}</td><td style="text-align:left;white-space:pre-wrap">${esc(rosterAt(d).note || "")}</td></tr>`;
-      }).join("")}</table></div></div>`;
-    }
-    const ns = state.nd && ds.includes(state.nd) ? state.nd : nx || (ds[ds.length - 1] ?? "");
-    const withNotes = ds.filter((d) => rosterAt(d).note || rosterAt(d).verse);
-    const nt = `<div class="card"><h3>Sunday verses and notes</h3><div class="mut">Each verse and note belongs to one Sunday and is kept permanently. Choose a Sunday to read or edit them.</div><div class="l"><select id="nsel">${ds.map((d) => `<option value="${d}"${d === ns ? " selected" : ""}>${formatDate(d)}</option>`).join("")}</select></div><b>Verse</b>${verseBox(ns)}<b>Notes</b>${noteBox(ns)}${withNotes.length ? '<div class="mut">All verses and notes</div>' + withNotes.map(
+      let c = x0.cells[ds.indexOf(d)] ?? [];
+      return `<tr class="${up.includes(d) ? "" : "fu"}"><td>${formatDate(d)}</td><td>${c.length ? c.map((k) => esc(M().find((m) => m.k === k)?.l)).join(" + ") : awayOn(x0.p.id, d) ? "Away" : "-"}</td><td style="text-align:left;white-space:pre-wrap">${esc(rosterAt(d).note || "")}</td></tr>`;
+    }).join("")}</table></div></div>`);
+    let ns = state.nd && ds.includes(state.nd) ? state.nd : nx || (ds[ds.length - 1] ?? ""), withNotes = ds.filter((d) => rosterAt(d).note || rosterAt(d).verse), nt = `<div class="card"><h3>Sunday verses and notes</h3><div class="mut">Each verse and note belongs to one Sunday and is kept permanently. Choose a Sunday to read or edit them.</div><div class="l"><select id="nsel">${ds.map((d) => `<option value="${d}"${d === ns ? " selected" : ""}>${formatDate(d)}</option>`).join("")}</select></div><b>Verse</b>${verseBox(ns)}<b>Notes</b>${noteBox(ns)}${withNotes.length ? '<div class="mut">All verses and notes</div>' + withNotes.map(
       (d) => `<div class="l"><b>${formatDate(d)}</b><span style="white-space:pre-wrap">${rosterAt(d).verse ? `<i>${esc(rosterAt(d).verse)}</i> ` : ""}${esc(rosterAt(d).note || "")}</span></div>`
-    ).join("") : ""}</div>`;
-    const thr = state.thr;
+    ).join("") : ""}</div>`, thr = state.thr;
     return `<div class="card"><h3>Service record</h3><div class="l">Optional highlight: runs of <input id="thr" type="number" min="0" max="12" value="${thr}" style="width:64px"> or more Sundays (0 = off)</div>
  <div class="mut">Run = consecutive Sundays served up to ${nx ? formatDate(nx) : "the last Sunday"} (an away Sunday or a Sunday off resets it). Later columns are planned and dimmed. Ministries: ${M().map((m) => `${ab[m.k]} = ${esc(m.l)}`).join(", ")}. Sorted by current run.</div>${flagSummary(ds)}</div>
  <div style="overflow-x:auto"><table class="rec"><tr><th>Name</th><th>Run</th><th>Longest</th><th>Total</th><th>Last served</th>${ds.map((d) => `<th class="${up.includes(d) ? "" : "fu"}">${sd(d)}</th>`).join("")}</tr>` + flagRow(ds) + rows.map(
       (x) => `<tr><td data-pick="${esc(x.p.id)}" style="cursor:pointer;${x.p.id === state.pick ? "font-weight:700;text-decoration:underline" : ""}" title="Click for details">${thr > 0 && x.run >= thr ? '<span class="fl">\u2691</span> ' : ""}${esc(x.p.name)}</td><td class="${thr > 0 && x.run >= thr ? "fl" : ""}">${x.run}</td><td>${x.best}</td><td>${x.tot}</td><td>${x.last ? sd(x.last) : "-"}</td>${x.cells.map((c, i) => {
-        const d = ds[i] ?? "";
+        let d = ds[i] ?? "";
         return `<td class="${c.length ? "hit" : ""}${awayOn(x.p.id, d) ? " aw" : ""}${up.includes(d) ? "" : " fu"}">${c.map((k) => ab[k]).join("+")}</td>`;
       }).join("")}</tr>`
     ).join("") + "</table></div>" + flagDetail() + det + nt;
@@ -1078,17 +1091,12 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
 
   // src/views/roster.ts
   function card(d) {
-    const r = state.ros[d];
+    let r = state.ros[d];
     if (!r) return `<section class="card"><h3>${formatDate(d)}</h3><p class="mut">Not generated yet.</p></section>`;
-    const { out, sum } = issuesOn(d);
-    const placed = new Set(Object.values(r.s).flat());
-    const sel = state.sel;
-    const chip = (id, k) => {
-      const bad = out[id];
-      const on = sel && sel.id === id && sel.d === d && sel.k === k;
+    let { out, sum } = issuesOn(d), placed = new Set(Object.values(r.s).flat()), sel = state.sel, chip = (id, k) => {
+      let bad = out[id], on = sel && sel.id === id && sel.d === d && sel.k === k;
       return `<span class="chip${bad ? " bad" : ""}${on ? " on" : ""}" draggable="true" data-id="${esc(id)}" data-d="${d}" data-k="${k}" title="${esc((bad || []).join("; "))}">${esc(nameOn(d, id))}</span>`;
-    };
-    const bench = peopleByName().filter((p) => !p.gone && !placed.has(p.id));
+    }, bench = peopleByName().filter((p) => !p.gone && !placed.has(p.id));
     return `<section class="card"><h3>${formatDate(d)} ${r.manual ? '<span class="mut">\xB7 edited</span>' : ""}</h3>
  ${sum.length ? `<div class="warn">\u26A0 ${esc(sum.join(" \xB7 "))}</div>` : ""}
  ${ministriesOn(d).map(
@@ -1100,27 +1108,20 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
  <div class="l noprint"><button data-requires="generateRoster" data-regen="${d}">${state.cf === d ? "Confirm: replace this Sunday" : "Regenerate this Sunday"}</button></div></section>`;
   }
   function rosterTab() {
-    const dates = windowDates();
-    const miss = dates.filter((d) => !state.ros[d]).length;
-    const cut = addDays(todayIso(), -7);
-    const shown = [.../* @__PURE__ */ new Set([...dates, ...Object.keys(state.ros)])].sort().filter((d) => state.past || d >= cut);
+    let dates = windowDates(), miss = dates.filter((d) => !state.ros[d]).length, cut = addDays(todayIso(), -7), shown = [.../* @__PURE__ */ new Set([...dates, ...Object.keys(state.ros)])].sort().filter((d) => state.past || d >= cut);
     return `<div class="l noprint"><button class="p" id="gen" data-requires="generateRoster">Generate ${miss} missing Sunday${miss === 1 ? "" : "s"}</button><button id="past">${state.past ? "Hide" : "Show"} past</button><button id="csv" data-requires="exportCsv">Export CSV</button><span class="mut">Window: 3 rolling months. Existing Sundays are never overwritten.</span></div>` + shown.map((d) => card(d)).join("");
   }
 
   // src/views/serving.ts
   function servingTab() {
-    const d = Object.keys(state.ros).sort().find((x) => x >= todayIso());
-    const r = d ? state.ros[d] : void 0;
+    let d = Object.keys(state.ros).sort().find((x) => x >= todayIso()), r = d ? state.ros[d] : void 0;
     if (!d || !r) return '<div class="card"><p class="mut">No upcoming Sunday has been generated yet.</p></div>';
-    const { out, sum } = issuesOn(d);
-    const on = {};
-    const ministries = ministriesOn(d);
-    for (const m of ministries) for (const i of r.s[m.k] || []) on[i] = m.l;
-    const sedit = state.sedit;
+    let { out, sum } = issuesOn(d), on = {}, ministries = ministriesOn(d);
+    for (let m of ministries) for (let i of r.s[m.k] || []) on[i] = m.l;
+    let sedit = state.sedit;
     return `<div class="l noprint"><button class="p" id="pdf" data-d="${d}">Export PDF</button><button id="sedit" data-requires="editRoster">${sedit ? "Done editing" : "Edit"}</button></div>
  <section class="card sv"><h3>${formatDate(d)}</h3>${r.verse ? `<p style="white-space:pre-wrap;font-style:italic">${esc(r.verse)}</p>` : ""}${sedit && sum.length ? `<div class="warn noprint">\u26A0 ${esc(sum.join(" \xB7 "))}</div>` : ""}` + ministries.map((m) => {
-      const ids = r.s[m.k] || [];
-      const opts = peopleByName().filter((p) => !p.gone && p.elig.includes(m.k) && !ids.includes(p.id));
+      let ids = r.s[m.k] || [], opts = peopleByName().filter((p) => !p.gone && p.elig.includes(m.k) && !ids.includes(p.id));
       return `<div class="row"><b>${esc(m.l)}</b><div>${ids.map(
         (i) => `<span${out[i] && sedit ? ' class="warn"' : ""}>${esc(nameOn(d, i))}${sedit ? `<span class="x" data-edit-ministry="${m.k}" data-srm="${m.k}|${esc(i)}" data-d="${d}" title="Remove">\u2715</span>` : ""}</span>`
       ).join(", ") || '<span class="mut">Unfilled</span>'}
@@ -1131,67 +1132,55 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
   }
 
   // src/views/swaps.ts
-  var STATUS_TEXT = { open: "waiting for a team leader", approved: "approved", declined: "declined", cancelled: "cancelled" };
-  var personName2 = (id) => state.people[id]?.name ?? id;
-  var ministryName = (s) => ministriesOn(s.date).find((m) => m.k === s.ministry)?.l ?? s.ministry;
-  var newestFirst = (a, b) => a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0;
+  var STATUS_TEXT = { open: "waiting for a team leader", approved: "approved", declined: "declined", cancelled: "cancelled" }, personName2 = (id) => state.people[id]?.name ?? id, ministryName = (s) => ministriesOn(s.date).find((m) => m.k === s.ministry)?.l ?? s.ministry, newestFirst = (a, b) => a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0;
   function coverOptions(s) {
-    const onTeam = state.ros[s.date]?.s[s.ministry] ?? [];
+    let onTeam = state.ros[s.date]?.s[s.ministry] ?? [];
     return peopleByName().filter((p) => !p.gone && p.id !== s.from && p.elig.includes(s.ministry) && !onTeam.includes(p.id)).map((p) => `<option value="${esc(p.id)}">${esc(p.name)}${awayOn(p.id, s.date) ? " (away that day)" : ""}</option>`).join("");
   }
   function requestCard(me) {
-    if (!me || !state.people[me]) {
+    if (!me || !state.people[me])
       return '<div class="card"><h3>Ask for cover</h3><p class="mut">Your login is not linked to a person on the roster, so you cannot request a swap. An admin links a login to a person.</p></div>';
-    }
-    const open = new Set(
+    let open = new Set(
       Object.values(state.swaps).filter((s) => s.status === "open" && s.from === me).map((s) => `${s.date}|${s.ministry}`)
-    );
-    const slots = slotsFor(me).upcoming.filter((s) => !open.has(`${s.date}|${s.ministryKey}`));
-    if (!slots.length) {
-      return '<div class="card"><h3>Ask for cover</h3><p class="mut">You have no upcoming Sundays without an open request.</p></div>';
-    }
-    const options = slots.map((s) => {
-      const value = `${s.date}|${s.ministryKey}`;
+    ), slots = slotsFor(me).upcoming.filter((s) => !open.has(`${s.date}|${s.ministryKey}`));
+    return slots.length ? `<div class="card"><h3>Ask for cover</h3><div class="mut">Pick a Sunday you cannot serve. A team leader of that ministry will choose who covers it.</div>
+  <div class="l"><select id="swslot" data-keep="1">${slots.map((s) => {
+      let value = `${s.date}|${s.ministryKey}`;
       return `<option value="${esc(value)}"${value === state.swapDraft ? " selected" : ""}>${formatDate(s.date)}: ${esc(s.ministry)}</option>`;
-    }).join("");
-    return `<div class="card"><h3>Ask for cover</h3><div class="mut">Pick a Sunday you cannot serve. A team leader of that ministry will choose who covers it.</div>
-  <div class="l"><select id="swslot" data-keep="1">${options}</select><input id="swnote" data-keep="1" maxlength="300" placeholder="Reason (optional)"><button class="p" id="swreq">Request swap</button></div></div>`;
+    }).join("")}</select><input id="swnote" data-keep="1" maxlength="300" placeholder="Reason (optional)"><button class="p" id="swreq">Request swap</button></div></div>` : '<div class="card"><h3>Ask for cover</h3><p class="mut">You have no upcoming Sundays without an open request.</p></div>';
   }
   function mineCard(me) {
-    const mine = Object.values(state.swaps).filter((s) => me !== null && s.from === me).sort(newestFirst).slice(0, 20);
-    const rows = mine.map(
+    return `<div class="card"><h3>My requests</h3>${Object.values(state.swaps).filter((s) => me !== null && s.from === me).sort(newestFirst).slice(0, 20).map(
       (s) => `<div class="l">${formatDate(s.date)}: ${esc(ministryName(s))} \xB7 ${STATUS_TEXT[s.status]}${s.status === "approved" ? ` (${esc(personName2(s.cover))} covers)` : ""}${s.note ? ` \xB7 ${esc(s.note)}` : ""}${s.status === "open" ? `<button data-swcancel="${esc(s.id)}">Cancel</button>` : ""}</div>`
-    ).join("");
-    return `<div class="card"><h3>My requests</h3>${rows || '<span class="mut">No requests yet.</span>'}</div>`;
+    ).join("") || '<span class="mut">No requests yet.</span>'}</div>`;
   }
   function decideCard() {
-    const user = currentUser();
-    const pending = Object.values(state.swaps).filter((s) => s.status === "open" && canDecideSwap(s.ministry, s.from, user)).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
-    const rows = pending.map((s) => {
-      const options = coverOptions(s);
+    let user = currentUser();
+    return `<div class="card" data-requires="decideSwaps"><h3>Requests to decide</h3><div class="mut">Requests for the ministries you manage. Approving moves the cover onto the roster and takes the requester off it.</div>${Object.values(state.swaps).filter((s) => s.status === "open" && canDecideSwap(s.ministry, s.from, user)).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0).map((s) => {
+      let options = coverOptions(s);
       return `<div class="card" style="margin:8px 0"><b>${esc(personName2(s.from))}</b> asks to be covered<div class="mut">${formatDate(s.date)}: ${esc(ministryName(s))}${s.note ? ` \xB7 ${esc(s.note)}` : ""}</div>${options ? `<div class="l"><select id="swc-${esc(s.id)}" data-keep="1">${options}</select><button class="p" data-swok="${esc(s.id)}">Approve</button><button data-swno="${esc(s.id)}">Decline</button></div>` : `<div class="warn">Nobody eligible is free to cover. Make someone eligible in the Admin tab, or decline.</div><div class="l"><button data-swno="${esc(s.id)}">Decline</button></div>`}</div>`;
-    }).join("");
-    return `<div class="card" data-requires="decideSwaps"><h3>Requests to decide</h3><div class="mut">Requests for the ministries you manage. Approving moves the cover onto the roster and takes the requester off it.</div>${rows || '<p class="mut">Nothing waiting.</p>'}</div>`;
+    }).join("") || '<p class="mut">Nothing waiting.</p>'}</div>`;
   }
   function swapsTab() {
-    const user = currentUser();
-    const me = user?.personId ?? null;
+    let user = currentUser(), me = user?.personId ?? null;
     return requestCard(me) + mineCard(me) + (can("decideSwaps", user) ? decideCard() : "");
   }
 
   // src/render.ts
   function typingInKeptField(view) {
-    const active = document.activeElement;
-    return (active instanceof HTMLInputElement || active instanceof HTMLSelectElement) && active.dataset["keep"] !== void 0 && view.contains(active);
+    let active = document.activeElement;
+    return (active instanceof HTMLInputElement || active instanceof HTMLSelectElement) && active.dataset.keep !== void 0 && view.contains(active);
   }
   function render() {
-    const view = $("#v");
+    let view = $("#v");
     if (!view || !state.ready || !state.loaded.people) return;
-    const user = currentUser();
+    let user = currentUser();
     if (!user) return;
-    if (!canViewTab(state.tab, user)) state.tab = "m";
-    syncNav();
-    if (typingInKeptField(view)) return;
+    if (user.mustChangePassword) {
+      requirePasswordChange();
+      return;
+    }
+    if (canViewTab(state.tab, user) || (state.tab = "m"), view.dataset.role = user.role, syncNav(), typingInKeptField(view)) return;
     if (!state.cfg) {
       view.innerHTML = '<p class="mut">No configuration found yet.</p>';
       return;
@@ -1223,869 +1212,604 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
         html = adminTab() + changeLog();
         break;
     }
-    view.innerHTML = helpBox(state.tab) + html;
-    applyRoleMask(view);
+    view.innerHTML = helpBox(state.tab) + html, applyRoleMask(view);
   }
 
   // src/parse.ts
-  var isRecord = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-  var str = (v, fallback = "") => typeof v === "string" ? v : fallback;
-  var num = (v, fallback = 0) => typeof v === "number" && Number.isFinite(v) ? v : fallback;
-  var strings = (v) => Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  var isRecord = (v) => typeof v == "object" && v !== null && !Array.isArray(v), str = (v, fallback = "") => typeof v == "string" ? v : fallback, num = (v, fallback = 0) => typeof v == "number" && Number.isFinite(v) ? v : fallback, strings = (v) => Array.isArray(v) ? v.filter((x) => typeof x == "string") : [];
   function parseMinistry(v) {
     if (!isRecord(v)) return null;
-    const k = str(v["k"]);
+    let k = str(v.k);
     if (!k) return null;
-    const ministry = { k, l: str(v["l"], k), n: num(v["n"]), x: v["x"] ? 1 : 0 };
-    if (v["gone"]) ministry.gone = true;
-    return ministry;
+    let ministry = { k, l: str(v.l, k), n: num(v.n), x: v.x ? 1 : 0 };
+    return v.gone && (ministry.gone = !0), ministry;
   }
   function parseMinistries(v) {
-    if (!Array.isArray(v)) return [];
-    return v.map(parseMinistry).filter((m) => m !== null);
+    return Array.isArray(v) ? v.map(parseMinistry).filter((m) => m !== null) : [];
   }
   function parseConfig(data) {
-    if (!data) return null;
-    return { start: str(data["start"]), ministries: parseMinistries(data["ministries"]) };
+    return data ? { start: str(data.start), ministries: parseMinistries(data.ministries) } : null;
   }
   function parsePerson(id, data) {
-    const person = {
+    let person = {
       id,
-      name: str(data["name"], id),
-      family: num(data["family"]),
-      elig: strings(data["elig"])
+      name: str(data.name, id),
+      family: num(data.family),
+      elig: strings(data.elig)
     };
-    if (data["gone"]) person.gone = true;
-    const role = data["role"];
-    if (role === "admin" || role === "leader" || role === "member") person.role = role;
-    if (Array.isArray(data["leads"])) person.leads = strings(data["leads"]);
-    if (typeof data["phone"] === "string" && data["phone"]) person.phone = data["phone"];
-    return person;
+    data.gone && (person.gone = !0);
+    let role = data.role;
+    return (role === "admin" || role === "leader" || role === "member") && (person.role = role), Array.isArray(data.leads) && (person.leads = strings(data.leads)), typeof data.phone == "string" && data.phone && (person.phone = data.phone), person;
   }
   function parseSwap(id, data) {
-    const status = data["status"];
+    let status = data.status;
     return {
       id,
-      date: str(data["date"]),
-      ministry: str(data["ministry"]),
-      from: str(data["from"]),
-      note: str(data["note"]),
+      date: str(data.date),
+      ministry: str(data.ministry),
+      from: str(data.from),
+      note: str(data.note),
       status: status === "open" || status === "approved" || status === "declined" ? status : "cancelled",
-      cover: str(data["cover"]),
-      by: str(data["by"]),
-      ts: str(data["ts"])
+      cover: str(data.cover),
+      by: str(data.by),
+      ts: str(data.ts)
     };
   }
   function parseLogin(data) {
     if (!data) return null;
-    const personId = str(data["personId"]);
-    const salt = str(data["salt"]);
-    const hash = str(data["hash"]);
-    return personId && salt && hash ? { personId, salt, hash } : null;
+    let personId = str(data.personId), salt = str(data.salt), hash = str(data.hash);
+    return personId && salt && hash ? { personId, salt, hash, temp: data.temp === !0 } : null;
   }
   function parseAssignments(v) {
     if (!isRecord(v)) return null;
-    const out = {};
-    for (const [k, ids] of Object.entries(v)) out[k] = strings(ids);
+    let out = {};
+    for (let [k, ids] of Object.entries(v)) out[k] = strings(ids);
     return out;
   }
   function parseMinistrySnapshot(v) {
-    const m = parseMinistry(v);
+    let m = parseMinistry(v);
     return m ? { k: m.k, l: m.l, n: m.n, x: m.x } : null;
   }
   function parseMeta(v) {
-    if (!isRecord(v) || !Array.isArray(v["m"]) || !isRecord(v["p"])) return void 0;
-    const people = {};
-    for (const [id, p] of Object.entries(v["p"])) {
-      if (isRecord(p)) people[id] = { n: str(p["n"], id), e: strings(p["e"]) };
-    }
+    if (!isRecord(v) || !Array.isArray(v.m) || !isRecord(v.p)) return;
+    let people = {};
+    for (let [id, p] of Object.entries(v.p))
+      isRecord(p) && (people[id] = { n: str(p.n, id), e: strings(p.e) });
     return {
-      m: v["m"].map(parseMinistrySnapshot).filter((m) => m !== null),
+      m: v.m.map(parseMinistrySnapshot).filter((m) => m !== null),
       p: people
     };
   }
   function parseRoster(docId, data) {
     if (!data) return null;
-    const s = parseAssignments(data["s"]);
+    let s = parseAssignments(data.s);
     if (!s) return null;
-    const roster = { date: str(data["date"], docId), s };
-    if (data["gen"]) roster.gen = true;
-    if (data["manual"]) roster.manual = true;
-    if (typeof data["note"] === "string") roster.note = data["note"];
-    if (typeof data["verse"] === "string") roster.verse = data["verse"];
-    const meta = parseMeta(data["meta"]);
-    if (meta) roster.meta = meta;
-    return roster;
+    let roster = { date: str(data.date, docId), s };
+    data.gen && (roster.gen = !0), data.manual && (roster.manual = !0), typeof data.note == "string" && (roster.note = data.note), typeof data.verse == "string" && (roster.verse = data.verse);
+    let meta = parseMeta(data.meta);
+    return meta && (roster.meta = meta), roster;
   }
   function parseAway(data) {
-    return { person: str(data["person"]), from: str(data["from"]), to: str(data["to"]), note: str(data["note"]) };
+    return { person: str(data.person), from: str(data.from), to: str(data.to), note: str(data.note) };
   }
   function parseHistory(data) {
-    return { ts: str(data["ts"]), by: str(data["by"]), msg: str(data["msg"]) };
+    return { ts: str(data.ts), by: str(data.by), msg: str(data.msg) };
   }
 
   // src/store.ts
-  var toDoc = (value) => ({ ...value });
-  var text = (v) => typeof v === "string" ? v : "";
+  var toDoc = (value) => ({ ...value }), text = (v) => typeof v == "string" ? v : "";
   function requireDb() {
     if (!state.db) throw new Error("The database is not connected");
     return state.db;
   }
   function logit(message) {
-    void requireDb().collection("history").add({ ts: (/* @__PURE__ */ new Date()).toISOString(), by: state.me, msg: message }).catch(() => {
+    requireDb().collection("history").add({ ts: (/* @__PURE__ */ new Date()).toISOString(), by: state.me, msg: message }).catch(() => {
     });
   }
   var LEASE_MS = 3e3;
   async function withLock(ref, change) {
     for (let attempt = 0; attempt < 10; attempt++) {
-      const lease = await ref.acquire({ holder: tabId, ttlMs: LEASE_MS });
-      if (lease.acquired) return change(ref);
+      if ((await ref.acquire({ holder: tabId, ttlMs: LEASE_MS })).acquired) return change(ref);
       await new Promise((resolve) => setTimeout(resolve, 250 + Math.random() * 300));
     }
     throw new Error("busy");
   }
   async function createIfAbsent(date, roster) {
-    const ref = requireDb().doc(`rosters/${date}`);
-    let lease;
+    let ref = requireDb().doc(`rosters/${date}`), lease;
     try {
       lease = await ref.acquire({ holder: tabId, ttlMs: LEASE_MS });
     } catch {
-      return false;
+      return !1;
     }
-    if (!lease.acquired) return false;
-    const current = await ref.get();
-    if (current.exists && current.data()?.["s"]) return false;
-    await ref.set(toDoc(roster));
-    return true;
+    if (!lease.acquired) return !1;
+    let current = await ref.get();
+    return current.exists && current.data()?.s ? !1 : (await ref.set(toDoc(roster)), !0);
   }
   async function genMissing() {
-    const missing = windowDates().filter((d) => !state.ros[d]);
-    const prior = Object.values(state.ros);
-    const made = [];
-    for (const date of missing) {
-      const doc = {
+    let missing = windowDates().filter((d) => !state.ros[d]), prior = Object.values(state.ros), made = [];
+    for (let date of missing) {
+      let doc = {
         date,
         s: generateOn(date, prior.filter((x) => x.date < date).sort(byDate)),
-        gen: true,
-        manual: false,
+        gen: !0,
+        manual: !1,
         meta: snapshotNow()
       };
-      if (await createIfAbsent(date, doc)) {
-        prior.push(doc);
-        made.push(date);
-      }
+      await createIfAbsent(date, doc) && (prior.push(doc), made.push(date));
     }
-    const first = made[0];
-    const last = made[made.length - 1];
-    if (first && last) logit(`Generated ${made.length} Sunday(s): ${formatDate(first)} to ${formatDate(last)}`);
+    let first = made[0], last = made[made.length - 1];
+    first && last && logit(`Generated ${made.length} Sunday(s): ${formatDate(first)} to ${formatDate(last)}`);
   }
   async function regen(date) {
-    const s = generateOn(date, Object.values(state.ros).filter((x) => x.date < date).sort(byDate));
+    let s = generateOn(date, Object.values(state.ros).filter((x) => x.date < date).sort(byDate));
     await withLock(requireDb().doc(`rosters/${date}`), async (ref) => {
-      const current = await ref.get();
-      const c = current.exists ? current.data() ?? {} : {};
+      let current = await ref.get(), c = current.exists ? current.data() ?? {} : {};
       await ref.set({
         date,
         s,
-        gen: true,
-        manual: false,
-        note: text(c["note"]),
-        verse: text(c["verse"]),
+        gen: !0,
+        manual: !1,
+        note: text(c.note),
+        verse: text(c.verse),
         meta: snapshotNow()
-      });
-      logit(`Regenerated ${formatDate(date)}`);
+      }), logit(`Regenerated ${formatDate(date)}`);
     });
   }
   async function move(date, id, from, to) {
-    if (from === to) return;
-    state.sel = null;
-    await withLock(requireDb().doc(`rosters/${date}`), async (ref) => {
-      const current = await ref.get();
-      const roster = current.exists ? parseRoster(date, current.data()) : null;
+    from !== to && (state.sel = null, await withLock(requireDb().doc(`rosters/${date}`), async (ref) => {
+      let current = await ref.get(), roster = current.exists ? parseRoster(date, current.data()) : null;
       if (!roster) return;
-      const fromList = from ? roster.s[from] ?? [] : [];
-      const toList = to ? roster.s[to] ?? [] : [];
-      const patch = {};
+      let fromList = from ? roster.s[from] ?? [] : [], toList = to ? roster.s[to] ?? [] : [], patch = {};
       if (from && !fromList.includes(id)) {
         flash("Someone else already changed this. The latest version is shown.");
         return;
       }
-      if (from) patch[from] = fromList.filter((x) => x !== id);
-      if (to && !toList.includes(id)) patch[to] = [...toList, id];
-      if (Object.keys(patch).length === 0) return;
-      const ministries = ministriesForSunday(state.cfg, roster);
-      const label = (k) => ministries.find((m) => m.k === k)?.l || "Not serving";
-      await ref.update({ s: patch, manual: true });
-      logit(`${formatDate(date)}: moved ${nameOn(date, id)} from ${label(from)} to ${label(to)}`);
-    });
+      if (from && (patch[from] = fromList.filter((x) => x !== id)), to && !toList.includes(id) && (patch[to] = [...toList, id]), Object.keys(patch).length === 0) return;
+      let ministries = ministriesForSunday(state.cfg, roster), label = (k) => ministries.find((m) => m.k === k)?.l || "Not serving";
+      await ref.update({ s: patch, manual: !0 }), logit(`${formatDate(date)}: moved ${nameOn(date, id)} from ${label(from)} to ${label(to)}`);
+    }));
   }
   async function saveVerse(date) {
-    const verse = state.drafts[`v${date}`] ?? state.ros[date]?.verse ?? "";
-    await withLock(requireDb().doc(`rosters/${date}`), (ref) => ref.update({ verse }));
-    delete state.drafts[`v${date}`];
-    logit(`Verse saved for ${formatDate(date)}${verse ? `: ${verse.slice(0, 200)}` : " (cleared)"}`);
+    let verse = state.drafts[`v${date}`] ?? state.ros[date]?.verse ?? "";
+    await withLock(requireDb().doc(`rosters/${date}`), (ref) => ref.update({ verse })), delete state.drafts[`v${date}`], logit(`Verse saved for ${formatDate(date)}${verse ? `: ${verse.slice(0, 200)}` : " (cleared)"}`);
   }
   async function saveNote(date) {
-    const note = state.drafts[date] ?? state.ros[date]?.note ?? "";
-    await withLock(requireDb().doc(`rosters/${date}`), (ref) => ref.update({ note }));
-    delete state.drafts[date];
-    logit(`Note saved for ${formatDate(date)}`);
+    let note = state.drafts[date] ?? state.ros[date]?.note ?? "";
+    await withLock(requireDb().doc(`rosters/${date}`), (ref) => ref.update({ note })), delete state.drafts[date], logit(`Note saved for ${formatDate(date)}`);
   }
   async function saveMinistries(change) {
     await withLock(requireDb().doc("config/main"), async (ref) => {
-      const current = await ref.get();
+      let current = await ref.get();
       if (!current.exists) return;
-      const ministries = parseMinistries(current.data()?.["ministries"]);
-      change(ministries);
-      await ref.update({ ministries });
+      let ministries = parseMinistries(current.data()?.ministries);
+      change(ministries), await ref.update({ ministries });
     });
   }
   async function addMinistry(name, headcount, exclusive, leaderId = "") {
-    const key = `m${Date.now().toString(36)}`;
-    await saveMinistries((ms) => ms.push({ k: key, l: name, n: Math.max(0, headcount), x: exclusive ? 1 : 0 }));
-    logit(`Added ministry: ${name}`);
-    if (leaderId) await addLead(leaderId, key, name);
+    let key = `m${Date.now().toString(36)}`;
+    await saveMinistries((ms) => ms.push({ k: key, l: name, n: Math.max(0, headcount), x: exclusive ? 1 : 0 })), logit(`Added ministry: ${name}`), leaderId && await addLead(leaderId, key, name);
   }
   function requireAccessAdmin() {
     if (!can("manageMembers")) throw new Error("Only an admin can change roles");
   }
   async function addLead(id, key, label) {
-    requireAccessAdmin();
-    await withLock(requireDb().doc(`people/${id}`), async (ref) => {
-      const current = await ref.get();
+    requireAccessAdmin(), await withLock(requireDb().doc(`people/${id}`), async (ref) => {
+      let current = await ref.get();
       if (!current.exists) return;
-      const person = parsePerson(id, current.data() ?? {});
-      const leads = person.leads ?? [];
+      let person = parsePerson(id, current.data() ?? {}), leads = person.leads ?? [];
       await ref.update({ role: person.role === "admin" ? "admin" : "leader", leads: leads.includes(key) ? leads : [...leads, key] });
-    });
-    logit(`${personLabel(id)} is now a team leader of ${label}`);
+    }), logit(`${personLabel(id)} is now a team leader of ${label}`);
   }
   async function setRole(id, role) {
-    requireAccessAdmin();
-    if (!isRole(role)) return;
-    const next = role;
-    await requireDb().doc(`people/${id}`).update(next === "leader" ? { role: next } : { role: next, leads: [] });
-    logit(`${personLabel(id)} is now ${ROLE_DEFINITIONS[next].label}`);
+    if (requireAccessAdmin(), !isRole(role)) return null;
+    let next = role;
+    return next !== "admin" && isLastAdmin(id, state.people, state.logins) ? LAST_ADMIN_MESSAGE : (await requireDb().doc(`people/${id}`).update(next === "leader" ? { role: next } : { role: next, leads: [] }), logit(`${personLabel(id)} is now ${ROLE_DEFINITIONS[next].label}`), null);
   }
   async function setLeads(id, key, leads) {
-    requireAccessAdmin();
-    await withLock(requireDb().doc(`people/${id}`), async (ref) => {
-      const current = await ref.get();
+    requireAccessAdmin(), await withLock(requireDb().doc(`people/${id}`), async (ref) => {
+      let current = await ref.get();
       if (!current.exists) return;
-      const list = parsePerson(id, current.data() ?? {}).leads ?? [];
+      let list = parsePerson(id, current.data() ?? {}).leads ?? [];
       await ref.update({ leads: leads ? list.includes(key) ? list : [...list, key] : list.filter((k) => k !== key) });
-    });
-    logit(`${personLabel(id)} ${leads ? "now leads" : "no longer leads"} ${allMinistriesNow().find((m) => m.k === key)?.l ?? key}`);
+    }), logit(`${personLabel(id)} ${leads ? "now leads" : "no longer leads"} ${allMinistriesNow().find((m) => m.k === key)?.l ?? key}`);
   }
   async function setMinistryRemoved(key, removed) {
     await saveMinistries((ms) => {
-      const m = ms.find((x) => x.k === key);
-      if (m) m.gone = removed;
-    });
-    logit(`${removed ? "Removed" : "Restored"} ministry: ${allMinistriesNow().find((m) => m.k === key)?.l ?? key}`);
+      let m = ms.find((x) => x.k === key);
+      m && (m.gone = removed);
+    }), logit(`${removed ? "Removed" : "Restored"} ministry: ${allMinistriesNow().find((m) => m.k === key)?.l ?? key}`);
   }
   async function updateMinistry(key, field, value, checked) {
     await saveMinistries((ms) => {
-      const m = ms.find((x) => x.k === key);
-      if (!m) return;
-      if (field === "l" && value.trim()) m.l = value.trim();
-      if (field === "n") m.n = Math.max(0, Number(value) || 0);
-      if (field === "x") m.x = checked ? 1 : 0;
-    });
-    logit(`Updated ministry settings: ${field === "l" ? value : allMinistriesNow().find((m) => m.k === key)?.l}`);
+      let m = ms.find((x) => x.k === key);
+      m && (field === "l" && value.trim() && (m.l = value.trim()), field === "n" && (m.n = Math.max(0, Number(value) || 0)), field === "x" && (m.x = checked ? 1 : 0));
+    }), logit(`Updated ministry settings: ${field === "l" ? value : allMinistriesNow().find((m) => m.k === key)?.l}`);
   }
   async function addPerson(name, family) {
     let id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "person";
-    for (let attempt = 0; attempt < 50; attempt++, id += "-2") {
-      const created = await withLock(requireDb().doc(`people/${id}`), async (ref) => {
-        if ((await ref.get()).exists) return false;
-        await ref.set({ name, family, elig: [] });
-        return true;
-      });
-      if (created) {
+    for (let attempt = 0; attempt < 50; attempt++, id += "-2")
+      if (await withLock(requireDb().doc(`people/${id}`), async (ref) => (await ref.get()).exists ? !1 : (await ref.set({ name, family, elig: [] }), !0))) {
         logit(`Added person: ${name}`);
         return;
       }
-    }
     throw new Error("Could not find a free id for this person");
   }
   var personLabel = (id) => state.people[id]?.name ?? id;
   async function setPersonRemoved(id, removed) {
-    await requireDb().doc(`people/${id}`).update({ gone: removed });
-    logit(`${removed ? "Removed" : "Restored"} person: ${personLabel(id)}`);
+    return removed && isLastAdmin(id, state.people, state.logins) ? LAST_ADMIN_MESSAGE : (await requireDb().doc(`people/${id}`).update({ gone: removed }), logit(`${removed ? "Removed" : "Restored"} person: ${personLabel(id)}`), null);
   }
   async function renamePerson(id, name) {
-    const before = personLabel(id);
-    await requireDb().doc(`people/${id}`).update({ name });
-    logit(`Renamed ${before} to ${name}`);
+    let before = personLabel(id);
+    await requireDb().doc(`people/${id}`).update({ name }), logit(`Renamed ${before} to ${name}`);
   }
   async function setFamily(id, family) {
-    await requireDb().doc(`people/${id}`).update({ family });
-    logit(`Family number for ${personLabel(id)} set to ${family}`);
+    await requireDb().doc(`people/${id}`).update({ family }), logit(`Family number for ${personLabel(id)} set to ${family}`);
   }
   async function setEligibility(id, key, eligible) {
     await withLock(requireDb().doc(`people/${id}`), async (ref) => {
-      const current = await ref.get();
+      let current = await ref.get();
       if (!current.exists) return;
-      const list = parsePerson(id, current.data() ?? {}).elig;
-      const elig = eligible ? list.includes(key) ? list : [...list, key] : list.filter((k) => k !== key);
+      let list = parsePerson(id, current.data() ?? {}).elig, elig = eligible ? list.includes(key) ? list : [...list, key] : list.filter((k) => k !== key);
       await ref.update({ elig });
-    });
-    logit(
+    }), logit(
       `${personLabel(id)}${eligible ? " can now serve in " : " can no longer serve in "}${allMinistriesNow().find((m) => m.k === key)?.l || key}`
     );
   }
   async function addAway(person, from, to, note) {
-    await requireDb().collection("away").add({ person, from, to, note });
-    logit(`Away: ${personLabel(person)} ${from}${to !== from ? ` to ${to}` : ""}`);
+    await requireDb().collection("away").add({ person, from, to, note }), logit(`Away: ${personLabel(person)} ${from}${to !== from ? ` to ${to}` : ""}`);
   }
   async function removeAway(key) {
-    await requireDb().doc(`away/${key}`).delete();
-    logit("Removed an away entry");
+    await requireDb().doc(`away/${key}`).delete(), logit("Removed an away entry");
   }
   var resolveLogins = () => {
-  };
-  var loginsReady = new Promise((resolve) => {
+  }, loginsReady = new Promise((resolve) => {
     resolveLogins = resolve;
   });
   function refreshLogins() {
-    const out = {};
-    for (const [username, doc] of Object.entries(state.logins)) {
-      const person = state.people[doc.personId];
-      if (person?.gone) continue;
-      out[username] = { username, personId: doc.personId, displayName: person?.name ?? username, salt: doc.salt, passwordHash: doc.hash };
+    let out = {};
+    for (let [username, doc] of Object.entries(state.logins)) {
+      let person = state.people[doc.personId];
+      person?.gone || (out[username] = {
+        username,
+        personId: doc.personId,
+        displayName: person?.name ?? username,
+        salt: doc.salt,
+        passwordHash: doc.hash,
+        temp: doc.temp === !0
+      });
     }
     setStoredLogins(out);
   }
-  async function createLogin(personId, rawUsername, password) {
+  async function createLogin(personId, rawUsername) {
     requireAccessAdmin();
-    const person = state.people[personId];
+    let person = state.people[personId];
     if (!person || person.gone) return "Choose a person for this login.";
-    const username = normalizeUsername(rawUsername);
-    const problem = usernameProblem(username, Object.keys(state.logins)) ?? passwordProblem(password);
+    let username = normalizeUsername(rawUsername), problem = usernameProblem(username, Object.keys(state.logins));
     if (problem) return problem;
     if (Object.values(state.logins).some((l) => l.personId === personId)) return `${person.name} already has a login.`;
-    const { salt, hash } = await newCredentials(password);
-    const taken = await withLock(requireDb().doc(`logins/${username}`), async (ref) => {
-      if ((await ref.get()).exists) return true;
-      await ref.set({ personId, salt, hash });
-      return false;
-    });
-    if (taken) return "That username is taken.";
-    logit(`Created login ${username} for ${person.name}`);
-    return null;
+    let password = generatePassword(), { salt, hash } = await newCredentials(password);
+    return await withLock(requireDb().doc(`logins/${username}`), async (ref) => (await ref.get()).exists ? !0 : (await ref.set({ personId, salt, hash, temp: !0 }), !1)) ? "That username is taken." : (state.issued = { username, password }, logit(`Created login ${username} for ${person.name}`), null);
   }
-  async function resetLogin(username, password) {
-    requireAccessAdmin();
-    if (!state.logins[username]) return "That login no longer exists.";
-    const problem = passwordProblem(password);
-    if (problem) return problem;
-    const { salt, hash } = await newCredentials(password);
-    await requireDb().doc(`logins/${username}`).update({ salt, hash });
-    logit(`Reset the password for login ${username}`);
-    return null;
+  async function resetLogin(username) {
+    if (requireAccessAdmin(), !state.logins[username]) return "That login no longer exists.";
+    if (currentUser()?.username === username) return "Change your own password on the Profile tab.";
+    let password = generatePassword(), { salt, hash } = await newCredentials(password);
+    return await requireDb().doc(`logins/${username}`).update({ salt, hash, temp: !0 }), state.issued = { username, password }, logit(`Reset the password for login ${username}`), null;
   }
   async function removeLogin(username) {
     requireAccessAdmin();
-    await requireDb().doc(`logins/${username}`).delete();
-    logit(`Removed login ${username}`);
+    let login = state.logins[username];
+    return login && isLastAdmin(login.personId, state.people, state.logins) ? LAST_ADMIN_MESSAGE : (await requireDb().doc(`logins/${username}`).delete(), logit(`Removed login ${username}`), null);
+  }
+  async function setFirstPassword(next) {
+    let user = currentUser(), login = user ? state.logins[user.username] : void 0;
+    if (!user || user.kind !== "stored" || !login) return "Sign in again to set your password.";
+    let problem = passwordProblem(next);
+    if (problem) return problem;
+    if (await verifyPassword(user.username, next)) return "Choose a password that is different from the temporary one.";
+    let { salt, hash } = await newCredentials(next);
+    return await requireDb().doc(`logins/${user.username}`).update({ salt, hash, temp: !1 }), state.logins[user.username] = { ...login, salt, hash, temp: !1 }, refreshLogins(), logit(`Chose a new password for login ${user.username}`), null;
   }
   async function changeOwnPassword(current, next) {
-    const user = currentUser();
+    let user = currentUser();
     if (!user || user.kind !== "stored") return "Only logins created in the Admin tab can change their password here.";
     if (!await verifyPassword(user.username, current)) return "Your current password is not right.";
-    const problem = passwordProblem(next);
+    let problem = passwordProblem(next);
     if (problem) return problem;
     if (next === current) return "Choose a password that is different from the current one.";
-    const { salt, hash } = await newCredentials(next);
-    await requireDb().doc(`logins/${user.username}`).update({ salt, hash });
-    logit(`Changed the password for login ${user.username}`);
-    return null;
+    let { salt, hash } = await newCredentials(next);
+    return await requireDb().doc(`logins/${user.username}`).update({ salt, hash }), logit(`Changed the password for login ${user.username}`), null;
   }
   async function updateOwnProfile(field, value) {
-    const user = currentUser();
+    let user = currentUser();
     if (!user || !can("updateOwnProfile", user) || !user.personId) return;
-    const person = state.people[user.personId];
+    let person = state.people[user.personId];
     if (!person) return;
-    const clean = value.trim().slice(0, 60);
+    let clean = value.trim().slice(0, 60);
     if (field === "name") {
       if (!clean || clean === person.name) return;
-      await requireDb().doc(`people/${person.id}`).update({ name: clean });
-      logit(`${person.name} renamed themselves to ${clean}`);
+      await requireDb().doc(`people/${person.id}`).update({ name: clean }), logit(`${person.name} renamed themselves to ${clean}`);
     } else if (field === "phone") {
       if (clean === (person.phone ?? "")) return;
-      await requireDb().doc(`people/${person.id}`).update({ phone: clean });
-      logit(`${person.name} updated their phone number`);
+      await requireDb().doc(`people/${person.id}`).update({ phone: clean }), logit(`${person.name} updated their phone number`);
     }
   }
   var ministryLabel = (date, key) => ministriesOn(date).find((m) => m.k === key)?.l ?? key;
   async function requestSwap(date, ministry, note) {
-    const user = currentUser();
-    const me = user?.personId;
+    let user = currentUser(), me = user?.personId;
     if (!user || !can("requestSwap", user) || !me) return "Your login is not linked to a person on the roster.";
-    const roster = state.ros[date];
-    if (!roster || date < todayIso()) return "That Sunday is not open for swaps.";
-    if (!(roster.s[ministry] ?? []).includes(me)) return "You are not serving in that ministry on that Sunday.";
-    if (Object.values(state.swaps).some((s) => s.status === "open" && s.date === date && s.ministry === ministry && s.from === me)) {
-      return "You already have an open request for that.";
-    }
-    await requireDb().collection("swaps").add({ date, ministry, from: me, note: note.trim().slice(0, 300), status: "open", cover: "", by: "", ts: (/* @__PURE__ */ new Date()).toISOString() });
-    logit(`Swap requested: ${personLabel(me)}, ${formatDate(date)}, ${ministryLabel(date, ministry)}`);
-    return null;
+    let roster = state.ros[date];
+    return !roster || date < todayIso() ? "That Sunday is not open for swaps." : (roster.s[ministry] ?? []).includes(me) ? Object.values(state.swaps).some((s) => s.status === "open" && s.date === date && s.ministry === ministry && s.from === me) ? "You already have an open request for that." : (await requireDb().collection("swaps").add({ date, ministry, from: me, note: note.trim().slice(0, 300), status: "open", cover: "", by: "", ts: (/* @__PURE__ */ new Date()).toISOString() }), logit(`Swap requested: ${personLabel(me)}, ${formatDate(date)}, ${ministryLabel(date, ministry)}`), null) : "You are not serving in that ministry on that Sunday.";
   }
   async function cancelSwap(id) {
-    const user = currentUser();
-    const swap = state.swaps[id];
+    let user = currentUser(), swap = state.swaps[id];
     if (!user || !swap || swap.from !== user.personId) return "You can only cancel your own requests.";
     let result = null;
-    await withLock(requireDb().doc(`swaps/${id}`), async (ref) => {
-      const current = await ref.get();
+    return await withLock(requireDb().doc(`swaps/${id}`), async (ref) => {
+      let current = await ref.get();
       if (!current.exists || parseSwap(id, current.data() ?? {}).status !== "open") {
         result = "That request has already been dealt with.";
         return;
       }
       await ref.update({ status: "cancelled" });
-    });
-    if (!result) logit(`Swap cancelled: ${personLabel(swap.from)}, ${formatDate(swap.date)}`);
-    return result;
+    }), result || logit(`Swap cancelled: ${personLabel(swap.from)}, ${formatDate(swap.date)}`), result;
   }
   async function decideSwap(id, decision, cover) {
-    const user = currentUser();
-    const swap = state.swaps[id];
+    let user = currentUser(), swap = state.swaps[id];
     if (!user || !swap) return "That request no longer exists.";
     if (!canDecideSwap(swap.ministry, swap.from, user)) return "You cannot decide this request.";
     if (decision === "approved") {
       if (!cover || cover === swap.from) return "Choose someone else to cover.";
       if (!state.people[cover] || state.people[cover]?.gone) return "That person is not available.";
     }
-    const out = { error: null };
-    await withLock(requireDb().doc(`swaps/${id}`), async (swapRef) => {
-      const current = await swapRef.get();
-      const latest = current.exists ? parseSwap(id, current.data() ?? {}) : null;
+    let out = { error: null };
+    return await withLock(requireDb().doc(`swaps/${id}`), async (swapRef) => {
+      let current = await swapRef.get(), latest = current.exists ? parseSwap(id, current.data() ?? {}) : null;
       if (!latest || latest.status !== "open") {
         out.error = "That request has already been dealt with.";
         return;
       }
-      if (decision === "approved") {
-        await withLock(requireDb().doc(`rosters/${latest.date}`), async (rosterRef) => {
-          const snapshot = await rosterRef.get();
-          const roster = snapshot.exists ? parseRoster(latest.date, snapshot.data()) : null;
-          if (!roster) {
-            out.error = "That Sunday no longer exists.";
-            return;
-          }
-          const list = roster.s[latest.ministry] ?? [];
-          if (!list.includes(latest.from)) {
-            out.error = "The person is no longer on that team, so the roster was not changed.";
-            return;
-          }
-          const next = list.filter((x) => x !== latest.from);
-          if (!next.includes(cover)) next.push(cover);
-          await rosterRef.update({ s: { [latest.ministry]: next }, manual: true });
-        });
-        if (out.error) return;
-      }
-      await swapRef.update({ status: decision, cover: decision === "approved" ? cover : "", by: user.username });
-    });
-    if (!out.error) {
-      logit(
-        decision === "approved" ? `Swap approved: ${personLabel(cover)} covers ${personLabel(swap.from)}, ${formatDate(swap.date)}, ${ministryLabel(swap.date, swap.ministry)}` : `Swap declined: ${personLabel(swap.from)}, ${formatDate(swap.date)}, ${ministryLabel(swap.date, swap.ministry)}`
-      );
-    }
-    return out.error;
+      decision === "approved" && (await withLock(requireDb().doc(`rosters/${latest.date}`), async (rosterRef) => {
+        let snapshot = await rosterRef.get(), roster = snapshot.exists ? parseRoster(latest.date, snapshot.data()) : null;
+        if (!roster) {
+          out.error = "That Sunday no longer exists.";
+          return;
+        }
+        let list = roster.s[latest.ministry] ?? [];
+        if (!list.includes(latest.from)) {
+          out.error = "The person is no longer on that team, so the roster was not changed.";
+          return;
+        }
+        let next = list.filter((x) => x !== latest.from);
+        next.includes(cover) || next.push(cover), await rosterRef.update({ s: { [latest.ministry]: next }, manual: !0 });
+      }), out.error) || await swapRef.update({ status: decision, cover: decision === "approved" ? cover : "", by: user.username });
+    }), out.error || logit(
+      decision === "approved" ? `Swap approved: ${personLabel(cover)} covers ${personLabel(swap.from)}, ${formatDate(swap.date)}, ${ministryLabel(swap.date, swap.ministry)}` : `Swap declined: ${personLabel(swap.from)}, ${formatDate(swap.date)}, ${ministryLabel(swap.date, swap.ministry)}`
+    ), out.error;
   }
-  var locking = false;
-  var lockStop = false;
+  var locking = !1, lockStop = !1;
   async function autoLock() {
-    const { db, user, cfg, loaded } = state;
-    if (locking || lockStop || !currentUser() || !(loaded.config && loaded.people && loaded.rosters) || !cfg || !db) return;
-    const todo = Object.keys(state.ros).filter((d) => !state.ros[d]?.meta);
-    if (todo.length === 0) return;
-    locking = true;
-    try {
-      if (user && await user.can("data.write") === false) {
-        lockStop = true;
-        return;
+    let { db, user, cfg, loaded } = state;
+    if (locking || lockStop || !currentUser() || currentUser()?.mustChangePassword || !(loaded.config && loaded.people && loaded.rosters) || !cfg || !db) return;
+    let todo = Object.keys(state.ros).filter((d) => !state.ros[d]?.meta);
+    if (todo.length !== 0) {
+      locking = !0;
+      try {
+        if (user && await user.can("data.write") === !1) {
+          lockStop = !0;
+          return;
+        }
+        let locked = 0;
+        for (let date of todo)
+          await withLock(db.doc(`rosters/${date}`), async (ref) => {
+            let current = await ref.get(), roster = current.exists ? parseRoster(date, current.data()) : null;
+            roster && !roster.meta && (await ref.update({ meta: snapshotNow(roster) }), locked++);
+          });
+        locked > 0 && logit(`Locked ${locked} existing Sunday(s) to their current ministry and people settings`);
+      } catch (error) {
+        lockStop = !0, console.error(error);
+      } finally {
+        locking = !1;
       }
-      let locked = 0;
-      for (const date of todo) {
-        await withLock(db.doc(`rosters/${date}`), async (ref) => {
-          const current = await ref.get();
-          const roster = current.exists ? parseRoster(date, current.data()) : null;
-          if (roster && !roster.meta) {
-            await ref.update({ meta: snapshotNow(roster) });
-            locked++;
-          }
-        });
-      }
-      if (locked > 0) logit(`Locked ${locked} existing Sunday(s) to their current ministry and people settings`);
-    } catch (error) {
-      lockStop = true;
-      console.error(error);
-    } finally {
-      locking = false;
     }
   }
   async function connect(onChange2) {
     try {
-      const [db2, user, downloads] = await Promise.all([claude.use("db"), claude.use("user"), claude.use("downloads")]);
-      state.db = db2;
-      state.user = user;
-      state.downloads = downloads;
+      let [db2, user, downloads] = await Promise.all([claude.use("db"), claude.use("user"), claude.use("downloads")]);
+      state.db = db2, state.user = user, state.downloads = downloads;
     } catch {
     }
-    const db = state.db;
-    if (!db) {
-      resolveLogins();
-      return false;
-    }
+    let db = state.db;
+    if (!db)
+      return resolveLogins(), !1;
     try {
       state.me = await state.user?.id() ?? "";
     } catch {
     }
-    const redraw = () => {
-      state.ready = true;
-      onChange2();
+    let redraw = () => {
+      state.ready = !0, onChange2();
     };
-    db.doc("config/main").onSnapshot((snap) => {
-      state.cfg = snap.exists ? parseConfig(snap.data()) : null;
-      state.loaded.config = true;
-      redraw();
-      void autoLock();
-    });
-    db.collection("people").onSnapshot((snap) => {
+    return db.doc("config/main").onSnapshot((snap) => {
+      state.cfg = snap.exists ? parseConfig(snap.data()) : null, state.loaded.config = !0, redraw(), autoLock();
+    }), db.collection("people").onSnapshot((snap) => {
       state.people = {};
-      for (const doc of snap.docs) state.people[doc.id] = parsePerson(doc.id, doc.data() ?? {});
-      setAssignments(assignmentsFrom(state.people));
-      refreshLogins();
-      state.loaded.people = true;
-      void autoLock();
-      redraw();
-    });
-    db.collection("rosters").onSnapshot((snap) => {
+      for (let doc of snap.docs) state.people[doc.id] = parsePerson(doc.id, doc.data() ?? {});
+      setAssignments(assignmentsFrom(state.people)), refreshLogins(), state.loaded.people = !0, autoLock(), redraw();
+    }), db.collection("rosters").onSnapshot((snap) => {
       state.ros = {};
-      for (const doc of snap.docs) {
-        const roster = parseRoster(doc.id, doc.data());
-        if (roster) state.ros[doc.id] = roster;
+      for (let doc of snap.docs) {
+        let roster = parseRoster(doc.id, doc.data());
+        roster && (state.ros[doc.id] = roster);
       }
-      state.loaded.rosters = true;
-      void autoLock();
-      redraw();
-    });
-    db.collection("away").onSnapshot((snap) => {
+      state.loaded.rosters = !0, autoLock(), redraw();
+    }), db.collection("away").onSnapshot((snap) => {
       state.away = {};
-      for (const doc of snap.docs) state.away[doc.id] = parseAway(doc.data() ?? {});
+      for (let doc of snap.docs) state.away[doc.id] = parseAway(doc.data() ?? {});
       redraw();
-    });
-    db.collection("swaps").onSnapshot((snap) => {
+    }), db.collection("swaps").onSnapshot((snap) => {
       state.swaps = {};
-      for (const doc of snap.docs) state.swaps[doc.id] = parseSwap(doc.id, doc.data() ?? {});
+      for (let doc of snap.docs) state.swaps[doc.id] = parseSwap(doc.id, doc.data() ?? {});
       redraw();
-    });
-    db.collection("logins").onSnapshot((snap) => {
+    }), db.collection("logins").onSnapshot((snap) => {
       state.logins = {};
-      for (const doc of snap.docs) {
-        const login = parseLogin(doc.data());
-        if (login) state.logins[doc.id] = login;
+      for (let doc of snap.docs) {
+        let login = parseLogin(doc.data());
+        login && (state.logins[doc.id] = login);
       }
-      refreshLogins();
-      resolveLogins();
-      redraw();
-    });
-    db.collection("history").orderBy("ts", "desc").limit(200).onSnapshot((snap) => {
-      state.log = snap.docs.map((doc) => parseHistory(doc.data() ?? {}));
-      void resolveNames();
-      redraw();
-    });
-    return true;
+      refreshLogins(), resolveLogins(), redraw();
+    }), db.collection("history").orderBy("ts", "desc").limit(200).onSnapshot((snap) => {
+      state.log = snap.docs.map((doc) => parseHistory(doc.data() ?? {})), resolveNames(), redraw();
+    }), !0;
   }
   async function resolveNames() {
-    const ids = [...new Set(state.log.map((h) => h.by).filter(Boolean))];
+    let ids = [...new Set(state.log.map((h) => h.by).filter(Boolean))];
     try {
-      const profiles = await state.user?.profiles(ids);
-      for (const id of ids) state.names[id] = profiles?.[id]?.name || "";
+      let profiles = await state.user?.profiles(ids);
+      for (let id of ids) state.names[id] = profiles?.[id]?.name || "";
     } catch {
     }
   }
 
   // src/handlers.ts
-  var TABS = ["m", "w", "s", "r", "a", "v", "p", "h"];
-  var isTab = (v) => TABS.includes(v);
+  var TABS = ["m", "w", "s", "r", "a", "v", "p", "h"], isTab = (v) => TABS.includes(v);
   function confirmed(key) {
-    if (state.cf === key) {
-      state.cf = null;
-      return true;
-    }
-    state.cf = key;
-    return false;
+    return state.cf === key ? (state.cf = null, !0) : (state.cf = key, !1);
   }
   async function moveIfAllowed(date, id, from, to) {
     if (!canMoveBetween(from, to)) {
-      state.sel = null;
-      flash("Your role cannot change that ministry.");
+      state.sel = null, flash("Your role cannot change that ministry.");
       return;
     }
     await move(date, id, from, to);
   }
   async function onClick(e) {
-    const t = e.target;
-    if (!(t instanceof HTMLElement)) return;
-    if (t.closest("input,textarea,select,label")) return;
-    const chip = t.closest(".chip");
-    const drop = t.closest("[data-drop]");
-    const ds = t.dataset;
-    let skipRender = false;
+    let t = e.target;
+    if (!(t instanceof HTMLElement) || t.closest("input,textarea,select,label")) return;
+    let chip = t.closest(".chip"), drop = t.closest("[data-drop]"), ds = t.dataset, skipRender = !1;
     try {
-      if (ds["t"]) {
-        if (isTab(ds["t"])) state.tab = ds["t"];
-        document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("on", b === t));
-      } else if (t.id === "gen") await genMissing();
+      if (ds.t)
+        isTab(ds.t) && (state.tab = ds.t), state.issued = null, document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("on", b === t));
+      else if (ds.goto)
+        isTab(ds.goto) && (state.tab = ds.goto, state.sel = null, state.cf = null);
+      else if (t.id === "gen") await genMissing();
       else if (t.id === "past") state.past = !state.past;
       else if (t.id === "csv") exportCsv();
-      else if (ds["regen"]) {
-        if (confirmed(ds["regen"])) await regen(ds["regen"]);
-      } else if (t.id === "aadd") {
-        const from = valueOf("af");
-        const to = valueOf("at") || from;
-        if (from && to >= from) await addAway(valueOf("ap"), from, to, valueOf("an"));
-      } else if (ds["del"]) await removeAway(ds["del"]);
+      else if (ds.regen)
+        confirmed(ds.regen) && await regen(ds.regen);
+      else if (t.id === "aadd") {
+        let from = valueOf("af"), to = valueOf("at") || from;
+        from && to >= from && await addAway(valueOf("ap"), from, to, valueOf("an"));
+      } else if (ds.del) await removeAway(ds.del);
       else if (t.id === "sedit") state.sedit = !state.sedit;
-      else if (t.id === "pdf") await exportPdf(ds["d"] ?? "");
-      else if (ds["srm"]) {
-        const [key = "", ...id] = ds["srm"].split("|");
-        await moveIfAllowed(ds["d"] ?? "", id.join("|"), key, "");
-      } else if (ds["sadd"]) {
-        const id = valueOf(`sa-${ds["sadd"]}`);
-        if (id) await moveIfAllowed(ds["d"] ?? "", id, "", ds["sadd"]);
-      } else if (ds["vsave"]) await saveVerse(ds["vsave"]);
-      else if (ds["nsave"]) await saveNote(ds["nsave"]);
+      else if (t.id === "pdf") await exportPdf(ds.d ?? "");
+      else if (ds.srm) {
+        let [key = "", ...id] = ds.srm.split("|");
+        await moveIfAllowed(ds.d ?? "", id.join("|"), key, "");
+      } else if (ds.sadd) {
+        let id = valueOf(`sa-${ds.sadd}`);
+        id && await moveIfAllowed(ds.d ?? "", id, "", ds.sadd);
+      } else if (ds.vsave) await saveVerse(ds.vsave);
+      else if (ds.nsave) await saveNote(ds.nsave);
       else if (t.closest("[data-fl]")) {
-        const date = t.closest("[data-fl]")?.dataset["fl"] ?? "";
+        let date = t.closest("[data-fl]")?.dataset.fl ?? "";
         state.fd = state.fd === date ? "" : date;
       } else if (t.closest("[data-pick]")) {
-        const id = t.closest("[data-pick]")?.dataset["pick"] ?? "";
+        let id = t.closest("[data-pick]")?.dataset.pick ?? "";
         state.pick = state.pick === id ? "" : id;
       } else if (t.id === "padd") {
-        const name = valueOf("pn").trim();
-        if (name) await addPerson(name, Number(valueOf("pf")) || 0);
-      } else if (ds["prm"]) {
-        if (confirmed(`p:${ds["prm"]}`)) await setPersonRemoved(ds["prm"], true);
-      } else if (ds["prs"]) await setPersonRemoved(ds["prs"], false);
-      else if (t.id === "madd") {
-        const name = valueOf("mn").trim();
-        if (name) await addMinistry(name, Math.max(0, Number(valueOf("mc")) || 1), isChecked("mx"), valueOf("ml"));
-      } else if (ds["mrm"]) {
-        if (confirmed(`m:${ds["mrm"]}`)) await setMinistryRemoved(ds["mrm"], true);
-      } else if (ds["mrs"]) await setMinistryRemoved(ds["mrs"], false);
-      else if (ds["swapfor"]) {
-        state.swapDraft = ds["swapfor"];
-        state.tab = "w";
-      } else if (t.id === "swreq") {
-        const [date = "", ministry = ""] = valueOf("swslot").split("|");
-        const error = await requestSwap(date, ministry, valueOf("swnote"));
-        if (error) {
-          flash(error);
-          skipRender = true;
-        } else {
-          state.swapDraft = "";
-          flash("Swap requested. A team leader will review it.");
+        let name = valueOf("pn").trim();
+        name && await addPerson(name, Number(valueOf("pf")) || 0);
+      } else if (ds.prm) {
+        if (confirmed(`p:${ds.prm}`)) {
+          let refused = await setPersonRemoved(ds.prm, !0);
+          refused && flash(refused);
         }
-      } else if (ds["swcancel"]) {
-        const error = await cancelSwap(ds["swcancel"]);
-        if (error) flash(error);
-      } else if (ds["swok"] || ds["swno"]) {
-        const id = ds["swok"] ?? ds["swno"] ?? "";
-        const error = await decideSwap(id, ds["swok"] ? "approved" : "declined", valueOf(`swc-${id}`));
-        if (error) flash(error);
+      } else if (ds.prs) await setPersonRemoved(ds.prs, !1);
+      else if (t.id === "madd") {
+        let name = valueOf("mn").trim();
+        name && await addMinistry(name, Math.max(0, Number(valueOf("mc")) || 1), isChecked("mx"), valueOf("ml"));
+      } else if (ds.mrm)
+        confirmed(`m:${ds.mrm}`) && await setMinistryRemoved(ds.mrm, !0);
+      else if (ds.mrs) await setMinistryRemoved(ds.mrs, !1);
+      else if (ds.swapfor)
+        state.swapDraft = ds.swapfor, state.tab = "w";
+      else if (t.id === "swreq") {
+        let [date = "", ministry = ""] = valueOf("swslot").split("|"), error = await requestSwap(date, ministry, valueOf("swnote"));
+        error ? (flash(error), skipRender = !0) : (state.swapDraft = "", flash("Swap requested. A team leader will review it."));
+      } else if (ds.swcancel) {
+        let error = await cancelSwap(ds.swcancel);
+        error && flash(error);
+      } else if (ds.swok || ds.swno) {
+        let id = ds.swok ?? ds.swno ?? "", error = await decideSwap(id, ds.swok ? "approved" : "declined", valueOf(`swc-${id}`));
+        error && flash(error);
       } else if (t.id === "ics") exportMyIcs();
       else if (t.id === "pwsave") {
-        const next = valueOf("pw-new");
-        const error = next !== valueOf("pw-new2") ? "The new passwords do not match." : await changeOwnPassword(valueOf("pw-cur"), next);
-        flash(error ?? "Password changed.");
-        skipRender = error !== null;
+        let next = valueOf("pw-new"), error = next !== valueOf("pw-new2") ? "The new passwords do not match." : await changeOwnPassword(valueOf("pw-cur"), next);
+        flash(error ?? "Password changed."), skipRender = error !== null;
       } else if (t.id === "ladd") {
-        const error = await createLogin(valueOf("lperson"), valueOf("lname"), valueOf("lpass"));
-        flash(error ?? "Login created.");
-        skipRender = error !== null;
-      } else if (ds["lreset"]) {
-        const error = await resetLogin(ds["lreset"], valueOf(`lp-${ds["lreset"]}`));
-        flash(error ?? "Password reset.");
-        skipRender = error !== null;
-      } else if (ds["lrm"]) {
-        if (confirmed(`l:${ds["lrm"]}`)) await removeLogin(ds["lrm"]);
+        let error = await createLogin(valueOf("lperson"), valueOf("lname"));
+        flash(error ?? "Login created. Give them the temporary password shown in the Logins box."), skipRender = error !== null;
+      } else if (ds.lreset) {
+        let error = await resetLogin(ds.lreset);
+        flash(error ?? "Password reset. Give them the temporary password shown in the Logins box."), skipRender = error !== null;
+      } else if (t.id === "lissued-ok") state.issued = null;
+      else if (ds.lrm) {
+        if (confirmed(`l:${ds.lrm}`)) {
+          let refused = await removeLogin(ds.lrm);
+          refused && flash(refused);
+        }
       } else if (chip) {
-        const next = { id: chip.dataset["id"] ?? "", d: chip.dataset["d"] ?? "", k: chip.dataset["k"] ?? "" };
-        const cur = state.sel;
+        let next = { id: chip.dataset.id ?? "", d: chip.dataset.d ?? "", k: chip.dataset.k ?? "" }, cur = state.sel;
         state.sel = cur && cur.id === next.id && cur.d === next.d && cur.k === next.k ? null : next;
-      } else if (drop && state.sel && state.sel.d === drop.dataset["d"]) {
-        await moveIfAllowed(state.sel.d, state.sel.id, state.sel.k, drop.dataset["drop"] ?? "");
-      }
+      } else drop && state.sel && state.sel.d === drop.dataset.d && await moveIfAllowed(state.sel.d, state.sel.id, state.sel.k, drop.dataset.drop ?? "");
     } catch (error) {
       fail(error);
     }
-    if (!skipRender) render();
+    skipRender || render();
   }
   async function onChange(e) {
-    const t = e.target;
+    let t = e.target;
     if (!(t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement)) return;
-    const d = t.dataset;
-    if (t.id === "thr") {
-      state.thr = Math.max(0, Number(t.value) || 0);
-      render();
-    }
-    if (t.id === "nsel") {
-      state.nd = t.value;
-      render();
-    }
-    const checked = t instanceof HTMLInputElement && t.checked;
+    let d = t.dataset;
+    t.id === "thr" && (state.thr = Math.max(0, Number(t.value) || 0), render()), t.id === "nsel" && (state.nd = t.value, render());
+    let checked = t instanceof HTMLInputElement && t.checked;
     try {
-      const person = d["pid"] ?? "";
-      if (d["pf"] === "name" && t.value.trim()) await renamePerson(person, t.value.trim());
-      else if (d["pf"] === "fam") await setFamily(person, Number(t.value) || 0);
-      else if (d["pe"]) await setEligibility(person, d["pe"], checked);
-      else if (d["prole"]) await setRole(person, t.value);
-      else if (d["plead"]) await setLeads(person, d["plead"], checked);
-      else if (d["prof"]) await updateOwnProfile(d["prof"], t.value);
-      else if (d["mf"] === "l" || d["mf"] === "n" || d["mf"] === "x") {
-        await updateMinistry(d["mk"] ?? "", d["mf"], t.value, checked);
-      }
+      let person = d.pid ?? "";
+      if (d.pf === "name" && t.value.trim()) await renamePerson(person, t.value.trim());
+      else if (d.pf === "fam") await setFamily(person, Number(t.value) || 0);
+      else if (d.pe) await setEligibility(person, d.pe, checked);
+      else if (d.prole) {
+        let refused = await setRole(person, t.value);
+        refused && (flash(refused), render());
+      } else d.plead ? await setLeads(person, d.plead, checked) : d.prof ? await updateOwnProfile(d.prof, t.value) : (d.mf === "l" || d.mf === "n" || d.mf === "x") && await updateMinistry(d.mk ?? "", d.mf, t.value, checked);
     } catch (error) {
       fail(error);
     }
   }
   function onInput(e) {
-    const t = e.target;
-    if (!(t instanceof HTMLTextAreaElement)) return;
-    if (t.dataset["note"]) state.drafts[t.dataset["note"]] = t.value;
-    if (t.dataset["verse"]) state.drafts[`v${t.dataset["verse"]}`] = t.value;
+    let t = e.target;
+    t instanceof HTMLTextAreaElement && (t.dataset.note && (state.drafts[t.dataset.note] = t.value), t.dataset.verse && (state.drafts[`v${t.dataset.verse}`] = t.value));
   }
-  var chipOf = (e) => e.target instanceof Element ? e.target.closest(".chip") : null;
-  var dropOf = (e) => e.target instanceof Element ? e.target.closest("[data-drop]") : null;
+  var chipOf = (e) => e.target instanceof Element ? e.target.closest(".chip") : null, dropOf = (e) => e.target instanceof Element ? e.target.closest("[data-drop]") : null;
   function bindEvents() {
-    document.addEventListener("click", (e) => void onClick(e));
-    document.addEventListener("change", (e) => void onChange(e));
-    document.addEventListener("input", onInput);
-    document.addEventListener("dragstart", (e) => {
-      const c = chipOf(e);
-      if (c) state.sel = { id: c.dataset["id"] ?? "", d: c.dataset["d"] ?? "", k: c.dataset["k"] ?? "" };
+    document.addEventListener("click", (e) => {
+      onClick(e);
+    }), document.addEventListener("change", (e) => {
+      onChange(e);
+    }), document.addEventListener("input", onInput), document.addEventListener("dragstart", (e) => {
+      let c = chipOf(e);
+      c && (state.sel = { id: c.dataset.id ?? "", d: c.dataset.d ?? "", k: c.dataset.k ?? "" });
+    }), document.addEventListener("dragover", (e) => {
+      dropOf(e) && e.preventDefault();
+    }), document.addEventListener("drop", (e) => {
+      let target = dropOf(e), sel = state.sel;
+      !target || !sel || sel.d !== target.dataset.d || (e.preventDefault(), moveIfAllowed(sel.d, sel.id, sel.k, target.dataset.drop ?? "").catch(fail));
     });
-    document.addEventListener("dragover", (e) => {
-      if (dropOf(e)) e.preventDefault();
-    });
-    document.addEventListener("drop", (e) => {
-      const target = dropOf(e);
-      const sel = state.sel;
-      if (!target || !sel || sel.d !== target.dataset["d"]) return;
-      e.preventDefault();
-      moveIfAllowed(sel.d, sel.id, sel.k, target.dataset["drop"] ?? "").catch(fail);
-    });
-  }
-
-  // src/login.ts
-  var EXPIRY_CHECK_MS = 6e4;
-  var LOGIN_ERRORS = {
-    missing: "Enter your username and password.",
-    invalid: "Incorrect username or password.",
-    unavailable: "Sign-in is not available in this browser context. Open the page over HTTPS.",
-    expired: "Your session has expired. Please sign in again."
-  };
-  function lockedMessage(until) {
-    const minutes = Math.max(1, Math.ceil((until - Date.now()) / 6e4));
-    return `Too many failed attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`;
-  }
-  function input(id) {
-    const el = document.getElementById(id);
-    return el instanceof HTMLInputElement ? el : null;
-  }
-  function setError(message) {
-    const el = document.getElementById("login-error");
-    if (el) el.textContent = message;
-  }
-  function setBusy(busy) {
-    const button = document.getElementById("login-submit");
-    if (button instanceof HTMLButtonElement) button.disabled = busy;
-  }
-  function showLogin(message = "") {
-    const login = document.getElementById("login");
-    const app = document.getElementById("app");
-    if (app) app.hidden = true;
-    if (login) login.hidden = false;
-    const password = input("login-password");
-    if (password) password.value = "";
-    setError(message);
-    input("login-username")?.focus();
-  }
-  function showApp(user) {
-    const login = document.getElementById("login");
-    const app = document.getElementById("app");
-    const who = document.getElementById("who");
-    if (who) who.textContent = `${user.displayName} \xB7 ${ROLE_DEFINITIONS[user.role].label}`;
-    if (login) login.hidden = true;
-    if (app) app.hidden = false;
-    setError("");
-  }
-  function enter(user, hooks) {
-    showApp(user);
-    hooks.onSignedIn(user);
-  }
-  async function submit(hooks) {
-    const username = input("login-username");
-    const password = input("login-password");
-    if (!username || !password) return;
-    setError("");
-    if (!username.value.trim() || !password.value) {
-      setError(LOGIN_ERRORS.missing);
-      return;
-    }
-    setBusy(true);
-    try {
-      await hooks.whenReady?.();
-      const result = await signIn(username.value, password.value);
-      if (result.ok) {
-        username.value = "";
-        password.value = "";
-        enter(result.user, hooks);
-      } else {
-        password.value = "";
-        password.focus();
-        setError(result.reason === "locked" ? lockedMessage(result.until) : LOGIN_ERRORS[result.reason]);
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-  function initLogin(hooks) {
-    const form = document.getElementById("login-form");
-    if (!(form instanceof HTMLFormElement)) throw new Error("The sign-in form is missing from the page");
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
-      void submit(hooks);
-    });
-    document.getElementById("signout")?.addEventListener("click", () => {
-      signOut();
-      showLogin();
-      hooks.onSignedOut();
-    });
-    window.setInterval(() => {
-      const app = document.getElementById("app");
-      if (app && !app.hidden && !currentUser()) {
-        showLogin(LOGIN_ERRORS.expired);
-        hooks.onSignedOut();
-      }
-    }, EXPIRY_CHECK_MS);
-    void (async () => {
-      await hooks.whenReady?.();
-      const saved = restoreSession();
-      if (saved) enter(saved, hooks);
-      else showLogin();
-    })();
   }
 
   // src/main.ts
   bindEvents();
-  var connection = connect(render);
-  var LOGINS_WAIT_MS = 3e3;
-  var whenReady = () => Promise.race([
+  var connection = connect(render), LOGINS_WAIT_MS = 3e3, whenReady = () => Promise.race([
     connection.then(() => loginsReady),
     new Promise((resolve) => {
       setTimeout(resolve, LOGINS_WAIT_MS);
@@ -2093,27 +1817,22 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
   ]);
   async function start() {
     if (await connection) {
-      render();
-      void autoLock();
+      render(), autoLock();
       return;
     }
-    const view = $("#v");
-    if (view) view.innerHTML = '<p class="mut">Sign in to claude.ai to use the roster.</p>';
+    let view = $("#v");
+    view && (view.innerHTML = '<p class="mut">Sign in to claude.ai to use the roster.</p>');
   }
   initLogin({
     whenReady,
+    onSetPassword: setFirstPassword,
     onSignedIn: () => {
-      state.tab = "m";
-      state.sel = null;
-      state.cf = null;
-      state.sedit = false;
-      state.swapDraft = "";
-      syncNav();
-      void start();
+      state.tab = "m", state.sel = null, state.cf = null, state.sedit = !1, state.swapDraft = "", syncNav(), start();
     },
     onSignedOut: () => {
-      const view = $("#v");
-      if (view) view.innerHTML = "";
+      state.issued = null;
+      let view = $("#v");
+      view && (view.innerHTML = "");
     }
   });
 })();

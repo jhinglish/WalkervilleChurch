@@ -4,7 +4,7 @@ import { initLogin } from './login';
 import { syncNav } from './mask';
 import { render } from './render';
 import { state } from './state';
-import { autoLock, connect, loginsReady } from './store';
+import { autoLock, connect, loginsReady, setFirstPassword } from './store';
 
 bindEvents();
 
@@ -37,6 +37,7 @@ async function start(): Promise<void> {
 
 initLogin({
   whenReady,
+  onSetPassword: setFirstPassword,
   onSignedIn: () => {
     // Start each sign-in on My schedule, which every role may open.
     state.tab = 'm';
@@ -48,6 +49,7 @@ initLogin({
     void start();
   },
   onSignedOut: () => {
+    state.issued = null;
     const view = $('#v');
     if (view) view.innerHTML = '';
   },

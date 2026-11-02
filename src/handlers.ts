@@ -67,6 +67,7 @@ async function onClick(e: MouseEvent): Promise<void> {
   try {
     if (ds['t']) {
       if (isTab(ds['t'])) state.tab = ds['t'];
+      state.issued = null;
       document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('on', b === t));
     } else if (ds['goto']) {
       // Action buttons on My schedule that open another tab.
@@ -105,7 +106,10 @@ async function onClick(e: MouseEvent): Promise<void> {
       const name = valueOf('pn').trim();
       if (name) await addPerson(name, Number(valueOf('pf')) || 0);
     } else if (ds['prm']) {
-      if (confirmed(`p:${ds['prm']}`)) await setPersonRemoved(ds['prm'], true);
+      if (confirmed(`p:${ds['prm']}`)) {
+        const refused = await setPersonRemoved(ds['prm'], true);
+        if (refused) flash(refused);
+      }
     } else if (ds['prs']) await setPersonRemoved(ds['prs'], false);
     else if (t.id === 'madd') {
       const name = valueOf('mn').trim();
@@ -140,15 +144,19 @@ async function onClick(e: MouseEvent): Promise<void> {
       flash(error ?? 'Password changed.');
       skipRender = error !== null;
     } else if (t.id === 'ladd') {
-      const error = await createLogin(valueOf('lperson'), valueOf('lname'), valueOf('lpass'));
-      flash(error ?? 'Login created.');
+      const error = await createLogin(valueOf('lperson'), valueOf('lname'));
+      flash(error ?? 'Login created. Give them the temporary password shown in the Logins box.');
       skipRender = error !== null;
     } else if (ds['lreset']) {
-      const error = await resetLogin(ds['lreset'], valueOf(`lp-${ds['lreset']}`));
-      flash(error ?? 'Password reset.');
+      const error = await resetLogin(ds['lreset']);
+      flash(error ?? 'Password reset. Give them the temporary password shown in the Logins box.');
       skipRender = error !== null;
-    } else if (ds['lrm']) {
-      if (confirmed(`l:${ds['lrm']}`)) await removeLogin(ds['lrm']);
+    } else if (t.id === 'lissued-ok') state.issued = null;
+    else if (ds['lrm']) {
+      if (confirmed(`l:${ds['lrm']}`)) {
+        const refused = await removeLogin(ds['lrm']);
+        if (refused) flash(refused);
+      }
     } else if (chip) {
       const next = { id: chip.dataset['id'] ?? '', d: chip.dataset['d'] ?? '', k: chip.dataset['k'] ?? '' };
       const cur = state.sel;
@@ -180,8 +188,13 @@ async function onChange(e: Event): Promise<void> {
     if (d['pf'] === 'name' && t.value.trim()) await renamePerson(person, t.value.trim());
     else if (d['pf'] === 'fam') await setFamily(person, Number(t.value) || 0);
     else if (d['pe']) await setEligibility(person, d['pe'], checked);
-    else if (d['prole']) await setRole(person, t.value);
-    else if (d['plead']) await setLeads(person, d['plead'], checked);
+    else if (d['prole']) {
+      const refused = await setRole(person, t.value);
+      if (refused) {
+        flash(refused);
+        render();
+      }
+    } else if (d['plead']) await setLeads(person, d['plead'], checked);
     else if (d['prof']) await updateOwnProfile(d['prof'], t.value);
     else if (d['mf'] === 'l' || d['mf'] === 'n' || d['mf'] === 'x') {
       await updateMinistry(d['mk'] ?? '', d['mf'], t.value, checked);

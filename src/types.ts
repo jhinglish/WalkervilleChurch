@@ -159,6 +159,8 @@ export interface LoginDoc {
   salt: string;
   /** SHA-256 (hex) of `<salt>:<password>`. */
   hash: string;
+  /** True while the password is a temporary one an admin set. The person must choose their own at the next sign-in. */
+  temp?: boolean;
 }
 
 /** The person currently selected for a tap-to-move. `k` is empty for "Not serving". */

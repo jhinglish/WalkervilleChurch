@@ -42,6 +42,19 @@ button{cursor:pointer}button.p{background:var(--ac);color:var(--bg);border-color
 <button class="p" type="submit" id="login-submit">Sign in</button>
 </form>
 </main>
+<main id="setpw" class="login" hidden>
+<form id="setpw-form" class="card" novalidate>
+<h1>Choose your password</h1>
+<div class="mut" id="setpw-for">You signed in with a temporary password. Choose your own to continue.</div>
+<label for="setpw-new">New password (8 or more characters)</label>
+<input id="setpw-new" name="new-password" type="password" autocomplete="new-password">
+<label for="setpw-new2">Repeat the new password</label>
+<input id="setpw-new2" name="new-password-repeat" type="password" autocomplete="new-password">
+<div id="setpw-error" class="err" role="alert"></div>
+<button class="p" type="submit" id="setpw-submit">Save password and continue</button>
+<button type="button" id="setpw-signout">Sign out</button>
+</form>
+</main>
 <main id="app" hidden>
 <div class="who noprint"><span id="who" class="badge"></span><button id="signout" type="button">Sign out</button></div>
 <h1>Walkerville Sunday Roster</h1>

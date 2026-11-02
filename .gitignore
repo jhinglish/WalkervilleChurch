@@ -69,6 +69,8 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+# dist-e2e/ is the browser-test build, which keeps the demo accounts. It must never be published or committed.
+dist-e2e/
 # dist/ is intentionally NOT ignored: the built single-file index.html that is
 # published to claude.ai is committed from there (see README, Source of truth).
 

@@ -1,9 +1,9 @@
 /**
  * Mock authentication for the Walkerville Sunday Roster: user profiles, role definitions and session state.
  *
- * IMPORTANT: this is a front-end gate, not security. The demo profiles, and every stored login's salt and
- * password hash, are readable by anyone who can open the page or the artifact database, so a hash can be
- * attacked offline. A session is a record in sessionStorage that anyone with the page open can forge, and
+ * IMPORTANT: this is a front-end gate, not security. Every stored login's salt and password hash (and, in the
+ * test builds only, the demo profiles) is readable by anyone who can open the page or the artifact database,
+ * so a hash can be attacked offline. A session is a record in sessionStorage that anyone with the page open can forge, and
  * the lockout below only slows down someone typing into this page. It controls what the interface shows.
  * It does not protect the data, which is protected only by claude.ai sign-in and the artifact database's own
  * rules (README > Known issues, item 2). Replace this module with a real identity provider before relying on it.
@@ -114,17 +114,22 @@ export interface UserProfile {
   salt: string;
   /** SHA-256 (hex) of `<salt>:<password>`. */
   passwordHash: string;
+  /** A stored login whose password an admin set: its person must choose their own at the next sign-in. */
+  temp?: boolean;
 }
 
 /** A profile without its credentials, which is all the rest of the app ever sees. */
-export type PublicUser = Omit<UserProfile, 'salt' | 'passwordHash'>;
+export type PublicUser = Omit<UserProfile, 'salt' | 'passwordHash' | 'temp'> & {
+  /** True while the login still has the temporary password. Such a session may do nothing but set a new password. */
+  mustChangePassword?: boolean;
+};
 
 /**
- * Demo accounts with made-up names, always available so an admin can never be locked out. `leader` manages
- * Welcoming and Tea and Coffee (keys `wel` and `tea`); `leader` and `member` are linked to roster people with
- * ids `demo-leader` and `demo-member`. Their passwords cannot be changed in the app.
+ * Demo accounts with made-up names, for the unit and browser tests only. `leader` manages Welcoming and Tea and
+ * Coffee (keys `wel` and `tea`); `leader` and `member` are linked to roster people with ids `demo-leader` and
+ * `demo-member`. Their passwords cannot be changed in the app. Never exported directly: see MOCK_USERS.
  */
-export const MOCK_USERS: readonly UserProfile[] = [
+const DEMO_USERS: readonly UserProfile[] = [
   {
     id: 'u-elder',
     username: 'elder',
@@ -160,6 +165,13 @@ export const MOCK_USERS: readonly UserProfile[] = [
   },
 ];
 
+/**
+ * The built-in accounts. `__DEMO_ACCOUNTS__` is a build-time constant (scripts/build.mjs, vitest.config.ts): it is
+ * false in the production build, where esbuild folds this to an empty list and drops DEMO_USERS, so the published
+ * page has no built-in logins. Its first admin is a stored login (README > Sign-in and roles > First admin).
+ */
+export const MOCK_USERS: readonly UserProfile[] = __DEMO_ACCOUNTS__ ? DEMO_USERS : [];
+
 /* ---------- logins created by an admin ---------- */
 
 /** A login an admin created, with the name of its person for display. */
@@ -169,6 +181,8 @@ export interface StoredLogin {
   displayName: string;
   salt: string;
   passwordHash: string;
+  /** The password is a temporary one an admin set; see UserProfile.temp. */
+  temp?: boolean;
 }
 
 let storedLogins: Record<string, StoredLogin> = {};
@@ -188,6 +202,7 @@ const storedProfile = (l: StoredLogin): UserProfile => ({
   kind: 'stored',
   salt: l.salt,
   passwordHash: l.passwordHash,
+  ...(l.temp ? { temp: true } : {}),
 });
 
 const allProfiles = (): UserProfile[] => [...MOCK_USERS, ...Object.values(storedLogins).map(storedProfile)];
@@ -224,6 +239,7 @@ function toPublic(profile: UserProfile): PublicUser {
     managedMinistries: assigned ? (assigned.role === 'leader' ? assigned.leads : []) : profile.managedMinistries,
     personId: profile.personId,
     kind: profile.kind,
+    ...(profile.temp ? { mustChangePassword: true } : {}),
   };
 }
 
@@ -249,6 +265,25 @@ export function assignmentsFrom(people: Record<PersonId, Person>): Record<Person
     if (person.role && !person.gone) out[person.id] = { role: person.role, leads: person.leads ?? [] };
   }
   return out;
+}
+
+/* ---------- keeping at least one admin ---------- */
+
+export const LAST_ADMIN_MESSAGE =
+  'That would leave nobody who can sign in as an admin. Make another person an admin, and give them a login, first.';
+
+/** People who can manage roles and logins right now: an admin who is not removed and has a stored login. */
+export function signInAdmins(people: Record<PersonId, Person>, logins: Record<string, { personId: PersonId }>): PersonId[] {
+  const withLogin = new Set(Object.values(logins).map((l) => l.personId));
+  return Object.values(people)
+    .filter((p) => p.role === 'admin' && !p.gone && withLogin.has(p.id))
+    .map((p) => p.id);
+}
+
+/** Whether this person is the only admin who can sign in, so demoting, removing or un-logging them would lock everyone out. */
+export function isLastAdmin(personId: PersonId, people: Record<PersonId, Person>, logins: Record<string, { personId: PersonId }>): boolean {
+  const admins = signInAdmins(people, logins);
+  return admins.length === 1 && admins[0] === personId;
 }
 
 /* ---------- session state ---------- */
@@ -321,6 +356,16 @@ export async function hashPassword(password: string, salt: string): Promise<stri
 export async function newCredentials(password: string): Promise<{ salt: string; hash: string }> {
   const salt = randomHex(16);
   return { salt, hash: await hashPassword(password, salt) };
+}
+
+const PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+/** A random temporary password such as `K7QM-X2PD-9WTE-HR4N`: 16 characters without look-alikes (0/O, 1/I), about 80 bits. */
+export function generatePassword(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  const chars = Array.from(bytes, (b) => PASSWORD_ALPHABET.charAt(b % PASSWORD_ALPHABET.length));
+  return [0, 4, 8, 12].map((i) => chars.slice(i, i + 4).join('')).join('-');
 }
 
 /** Whether this password is right for this username. Does not start a session or count as a failed attempt. */
@@ -481,7 +526,7 @@ export function signOut(): void {
 /* ---------- permission checks ---------- */
 
 export function can(permission: Permission, user: PublicUser | null = currentUser()): boolean {
-  return user !== null && ROLE_DEFINITIONS[user.role].permissions.includes(permission);
+  return user !== null && !user.mustChangePassword && ROLE_DEFINITIONS[user.role].permissions.includes(permission);
 }
 
 export const canViewTab = (tab: TabId, user: PublicUser | null = currentUser()): boolean => can(TAB_REQUIRES[tab], user);

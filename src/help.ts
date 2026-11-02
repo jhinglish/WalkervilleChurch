@@ -32,7 +32,6 @@ export const HELP: Record<TabId, HelpText> = {
     points: [
       'Name and phone save when you leave the box.',
       'Passwords need at least 8 characters. After 5 wrong passwords in a row a username is locked for 15 minutes on this device.',
-      'The built-in demo accounts cannot change their password here.',
     ],
   },
   s: {
@@ -83,7 +82,8 @@ export const HELP: Record<TabId, HelpText> = {
       'Ministries: rename one, change how many people it needs (used only when generating automatically) or mark it exclusive (anyone serving in it can’t serve in anything else that day). Remove stops a ministry being used for new Sundays. Sundays that already exist keep showing it, with the people assigned, exactly as generated. Restore brings it back.',
       'Each Sunday keeps a locked copy of the ministry names, headcounts, exclusive settings, people names and eligibility from when it was generated, so changes here never alter existing Sundays. A new ministry only appears on an existing Sunday if you press Regenerate on it. Sundays generated before this feature existed are locked automatically the first time the page is opened by someone who can edit.',
       'Access and team leaders: choose each person’s role (Admin / Elder, Team Leader or Member) and tick the ministries a team leader manages. A role only takes effect for a person who has a login linked to them. When adding a ministry you can pick its team leader straight away.',
-      'Logins: create a login for a person with a username and password, reset a forgotten password, or remove a login. A login signs in as its person, with that person\u2019s role.',
+      'Logins: create a login for a person with a username. The page makes a random temporary password and shows it to you once; give it to them in person. They are asked to choose their own password the first time they sign in. Reset password makes a new temporary one, and Remove deletes the login. A login signs in as its person, with that person\u2019s role.',
+      'The last admin who can sign in cannot be demoted, removed, or have their login removed. Make another person an admin, with a login, first.',
       'Change log (at the bottom): every change, newest first, with who made it.',
     ],
   },
